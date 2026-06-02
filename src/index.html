@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zonevert</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./renderer.js"></script>
+  </head>
+  <body>
+    <svg aria-hidden="true" class="icon-defs">
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="M8 5.5v13l11-6.5z" />
+      </symbol>
+      <symbol id="icon-stop" viewBox="0 0 24 24">
+        <path d="M7 7h10v10H7z" />
+      </symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24">
+        <path d="M8 8h11v11H8z" />
+        <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16" />
+        <path d="M10 11v6M14 11v6" />
+        <path d="M6 7l1 15h10l1-15M9 7V4h6v3" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="m5 12 5 5L20 7" />
+      </symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24">
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+        <path d="M10.3 4.3 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z" />
+      </symbol>
+      <symbol id="icon-terminal" viewBox="0 0 24 24">
+        <path d="m5 8 4 4-4 4" />
+        <path d="M12 18h7" />
+      </symbol>
+      <symbol id="icon-x" viewBox="0 0 24 24">
+        <path d="M6 6l12 12M18 6 6 18" />
+      </symbol>
+    </svg>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Zonevert</h1>
+          <p>FFmpeg image conversion</p>
+        </div>
+        <div class="ffmpeg-status" id="ffmpegStatus">
+          <span class="status-dot status-dot--idle"></span>
+          <span id="ffmpegStatusText">Checking FFmpeg</span>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="Conversion workspace">
+        <div class="setup-column">
+          <section class="panel" aria-labelledby="sourceTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="sourceTitle">Source</h2>
+                <p id="sourceCount">No files selected</p>
+              </div>
+              <div class="button-row">
+                <button class="icon-button" id="addFilesButton" type="button" aria-label="Add images" title="Add images">
+                  <svg><use href="#icon-plus"></use></svg>
+                </button>
+                <button class="icon-button" id="clearFilesButton" type="button" aria-label="Clear images" title="Clear images">
+                  <svg><use href="#icon-trash"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <button class="drop-target" id="dropTarget" type="button">
+              <svg><use href="#icon-folder"></use></svg>
+              <span>Choose images</span>
+            </button>
+            <input class="visually-hidden" id="browserFileInput" type="file" accept="image/*" multiple />
+
+            <div class="file-list" id="fileList" aria-live="polite"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="outputTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="outputTitle">Output</h2>
+                <p id="outputFolderText">No folder selected</p>
+              </div>
+              <button class="icon-button" id="outputDirButton" type="button" aria-label="Choose output folder" title="Choose output folder">
+                <svg><use href="#icon-folder"></use></svg>
+              </button>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>Format</span>
+                <select id="formatSelect">
+                  <option value="webp">WebP</option>
+                  <option value="jpg">JPEG</option>
+                  <option value="png">PNG</option>
+                  <option value="avif">AVIF</option>
+                  <option value="tiff">TIFF</option>
+                  <option value="bmp">BMP</option>
+                  <option value="gif">GIF</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>Preset</span>
+                <select id="presetSelect">
+                  <option value="balanced">Balanced</option>
+                  <option value="quality">High quality</option>
+                  <option value="small">Small files</option>
+                  <option value="lossless">Lossless</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="range-field">
+              <span>Quality <strong id="qualityValue">82</strong></span>
+              <input id="qualityInput" type="range" min="1" max="100" value="82" />
+            </label>
+
+            <div class="toggle-row">
+              <label class="toggle">
+                <input id="overwriteInput" type="checkbox" checked />
+                <span></span>
+                <strong>Overwrite</strong>
+              </label>
+              <label class="toggle">
+                <input id="metadataInput" type="checkbox" />
+                <span></span>
+                <strong>Keep metadata</strong>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="resizeTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="resizeTitle">Resize</h2>
+                <p id="resizeSummary">Original dimensions</p>
+              </div>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>Mode</span>
+                <select id="resizeModeSelect">
+                  <option value="none">None</option>
+                  <option value="inside">Fit inside</option>
+                  <option value="fill">Fill and crop</option>
+                  <option value="stretch">Stretch</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>Width</span>
+                <input id="widthInput" type="number" min="1" step="1" inputmode="numeric" />
+              </label>
+
+              <label class="field">
+                <span>Height</span>
+                <input id="heightInput" type="number" min="1" step="1" inputmode="numeric" />
+              </label>
+            </div>
+          </section>
+
+          <details class="panel advanced-panel">
+            <summary>
+              <span>Advanced FFmpeg</span>
+              <svg><use href="#icon-terminal"></use></svg>
+            </summary>
+
+            <label class="field">
+              <span>FFmpeg path</span>
+              <input id="ffmpegPathInput" type="text" spellcheck="false" placeholder="ffmpeg" />
+            </label>
+
+            <label class="field">
+              <span>Global args</span>
+              <input id="globalArgsInput" type="text" spellcheck="false" />
+            </label>
+
+            <label class="field">
+              <span>Input args</span>
+              <input id="inputArgsInput" type="text" spellcheck="false" />
+            </label>
+
+            <label class="field">
+              <span>Filter graph</span>
+              <input id="filterInput" type="text" spellcheck="false" />
+            </label>
+
+            <label class="field">
+              <span>Output args</span>
+              <input id="outputArgsInput" type="text" spellcheck="false" />
+            </label>
+
+            <button class="secondary-button" id="probeButton" type="button">
+              <svg><use href="#icon-check"></use></svg>
+              Check FFmpeg
+            </button>
+          </details>
+        </div>
+
+        <div class="run-column">
+          <section class="panel command-panel" aria-labelledby="commandTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="commandTitle">Command</h2>
+                <p id="commandSummary">Waiting for source and output</p>
+              </div>
+              <button class="icon-button" id="copyCommandButton" type="button" aria-label="Copy command" title="Copy command">
+                <svg><use href="#icon-copy"></use></svg>
+              </button>
+            </div>
+            <pre id="commandPreview">ffmpeg</pre>
+          </section>
+
+          <section class="panel queue-panel" aria-labelledby="queueTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="queueTitle">Queue</h2>
+                <p id="queueSummary">0 pending</p>
+              </div>
+              <div class="button-row">
+                <button class="primary-button" id="convertButton" type="button">
+                  <svg><use href="#icon-play"></use></svg>
+                  Convert
+                </button>
+                <button class="icon-button danger-button" id="cancelButton" type="button" aria-label="Cancel current job" title="Cancel current job" disabled>
+                  <svg><use href="#icon-stop"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="queue-list" id="queueList"></div>
+          </section>
+
+          <section class="panel log-panel" aria-labelledby="logTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="logTitle">Log</h2>
+                <p id="logSummary">Idle</p>
+              </div>
+              <button class="icon-button" id="clearLogButton" type="button" aria-label="Clear log" title="Clear log">
+                <svg><use href="#icon-x"></use></svg>
+              </button>
+            </div>
+            <pre id="logOutput"></pre>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

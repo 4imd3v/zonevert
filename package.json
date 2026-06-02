@@ -1,0 +1,44 @@
+{
+  "name": "zonevert",
+  "version": "0.1.0",
+  "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
+  "main": "src/main.js",
+  "packageManager": "pnpm@11.3.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "node scripts/install-electron-runtime.cjs",
+    "start": "electron --no-sandbox .",
+    "start:sandboxed": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js",
+    "package:linux": "electron-builder --linux AppImage deb",
+    "package:windows": "electron-builder --win nsis portable"
+  },
+  "devDependencies": {
+    "electron": "42.3.0",
+    "electron-builder": "26.8.1"
+  },
+  "build": {
+    "appId": "dev.zonevert.app",
+    "productName": "Zonevert",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  }
+}

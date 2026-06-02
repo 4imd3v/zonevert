@@ -1,0 +1,210 @@
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { spawn } = require("node:child_process");
+const path = require("node:path");
+
+const runningProcesses = new Map();
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    minWidth: 920,
+    minHeight: 680,
+    backgroundColor: "#f4f5f7",
+    title: "Zonevert",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  win.loadFile(path.join(__dirname, "index.html"));
+}
+
+function resolveFfmpegPath(ffmpegPath) {
+  const trimmed = typeof ffmpegPath === "string" ? ffmpegPath.trim() : "";
+  return trimmed || process.env.FFMPEG_PATH || "ffmpeg";
+}
+
+function runProbe(ffmpegPath) {
+  return new Promise((resolve) => {
+    const child = spawn(resolveFfmpegPath(ffmpegPath), ["-version"], {
+      windowsHide: true
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      resolve({
+        ok: false,
+        error: error.message
+      });
+    });
+
+    child.on("close", (code) => {
+      const firstLine = stdout.split(/\r?\n/).find(Boolean);
+      resolve({
+        ok: code === 0,
+        code,
+        version: firstLine || "",
+        error: code === 0 ? "" : stderr || stdout
+      });
+    });
+  });
+}
+
+function runConversion(event, payload) {
+  return new Promise((resolve) => {
+    const { jobId, ffmpegPath, args } = payload;
+
+    if (!jobId || !Array.isArray(args)) {
+      resolve({
+        ok: false,
+        error: "Invalid conversion request."
+      });
+      return;
+    }
+
+    const child = spawn(resolveFfmpegPath(ffmpegPath), args, {
+      windowsHide: true
+    });
+
+    runningProcesses.set(jobId, child);
+
+    child.stdout.on("data", (chunk) => {
+      event.sender.send("ffmpeg:log", {
+        jobId,
+        stream: "stdout",
+        text: chunk.toString()
+      });
+    });
+
+    child.stderr.on("data", (chunk) => {
+      event.sender.send("ffmpeg:log", {
+        jobId,
+        stream: "stderr",
+        text: chunk.toString()
+      });
+    });
+
+    child.on("error", (error) => {
+      runningProcesses.delete(jobId);
+      resolve({
+        ok: false,
+        error: error.message
+      });
+    });
+
+    child.on("close", (code, signal) => {
+      runningProcesses.delete(jobId);
+      resolve({
+        ok: code === 0,
+        code,
+        signal,
+        error: code === 0 ? "" : `FFmpeg exited with code ${code}.`
+      });
+    });
+  });
+}
+
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+ipcMain.handle("dialog:select-images", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Select source images",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      {
+        name: "Images",
+        extensions: [
+          "apng",
+          "avif",
+          "bmp",
+          "gif",
+          "heic",
+          "heif",
+          "jpeg",
+          "jpg",
+          "png",
+          "tif",
+          "tiff",
+          "webp"
+        ]
+      },
+      {
+        name: "All files",
+        extensions: ["*"]
+      }
+    ]
+  });
+
+  if (result.canceled) {
+    return [];
+  }
+
+  return result.filePaths.map((filePath) => ({
+    path: filePath,
+    name: path.basename(filePath)
+  }));
+});
+
+ipcMain.handle("dialog:select-output-dir", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Select output folder",
+    properties: ["openDirectory", "createDirectory"]
+  });
+
+  if (result.canceled) {
+    return "";
+  }
+
+  return result.filePaths[0] || "";
+});
+
+ipcMain.handle("ffmpeg:probe", async (_event, payload = {}) => {
+  return runProbe(payload.ffmpegPath);
+});
+
+ipcMain.handle("ffmpeg:convert", async (event, payload = {}) => {
+  return runConversion(event, payload);
+});
+
+ipcMain.handle("ffmpeg:cancel", async (_event, payload = {}) => {
+  const child = runningProcesses.get(payload.jobId);
+
+  if (!child) {
+    return {
+      ok: false,
+      error: "No running process found."
+    };
+  }
+
+  child.kill();
+  return {
+    ok: true
+  };
+});
