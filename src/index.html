@@ -45,19 +45,58 @@
       <symbol id="icon-x" viewBox="0 0 24 24">
         <path d="M6 6l12 12M18 6 6 18" />
       </symbol>
+      <symbol id="icon-image" viewBox="0 0 24 24">
+        <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+        <path d="m3 16 5-5 4 4 2-2 7 7" />
+        <path d="M16 8h.01" />
+      </symbol>
+      <symbol id="icon-gauge" viewBox="0 0 24 24">
+        <path d="M4 14a8 8 0 0 1 16 0" />
+        <path d="M12 14l4-4" />
+        <path d="M12 18h.01" />
+      </symbol>
+      <symbol id="icon-box" viewBox="0 0 24 24">
+        <path d="M21 8 12 3 3 8l9 5z" />
+        <path d="M3 8v8l9 5 9-5V8" />
+        <path d="M12 13v8" />
+      </symbol>
     </svg>
 
     <main class="app-shell">
       <header class="topbar">
-        <div>
-          <h1>Zonevert</h1>
-          <p>FFmpeg image conversion</p>
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <svg><use href="#icon-image"></use></svg>
+          </div>
+          <div>
+            <h1>Zonevert</h1>
+            <p>FFmpeg image conversion</p>
+          </div>
         </div>
         <div class="ffmpeg-status" id="ffmpegStatus">
           <span class="status-dot status-dot--idle"></span>
           <span id="ffmpegStatusText">Checking FFmpeg</span>
         </div>
       </header>
+
+      <section class="summary-strip" aria-label="Conversion summary">
+        <div class="summary-item">
+          <span>Files</span>
+          <strong id="summaryFiles">0</strong>
+        </div>
+        <div class="summary-item">
+          <span>Format</span>
+          <strong id="summaryFormat">WebP</strong>
+        </div>
+        <div class="summary-item">
+          <span>Quality</span>
+          <strong id="summaryQuality">82</strong>
+        </div>
+        <div class="summary-item">
+          <span>Output</span>
+          <strong id="summaryOutput">Source</strong>
+        </div>
+      </section>
 
       <section class="workspace" aria-label="Conversion workspace">
         <div class="setup-column">
@@ -78,8 +117,13 @@
             </div>
 
             <button class="drop-target" id="dropTarget" type="button">
-              <svg><use href="#icon-folder"></use></svg>
-              <span>Choose images</span>
+              <span class="drop-icon" aria-hidden="true">
+                <svg><use href="#icon-image"></use></svg>
+              </span>
+              <span class="drop-copy">
+                <strong>Choose or drop images</strong>
+                <small>JPG, PNG, WebP, AVIF, TIFF, BMP, GIF</small>
+              </span>
             </button>
             <input class="visually-hidden" id="browserFileInput" type="file" accept="image/*" multiple />
 
@@ -233,12 +277,16 @@
               <div class="button-row">
                 <button class="primary-button" id="convertButton" type="button">
                   <svg><use href="#icon-play"></use></svg>
-                  Convert
+                  <span id="convertButtonText">Convert</span>
                 </button>
                 <button class="icon-button danger-button" id="cancelButton" type="button" aria-label="Cancel current job" title="Cancel current job" disabled>
                   <svg><use href="#icon-stop"></use></svg>
                 </button>
               </div>
+            </div>
+
+            <div class="queue-progress" aria-hidden="true">
+              <span id="queueProgressBar"></span>
             </div>
 
             <div class="queue-list" id="queueList"></div>

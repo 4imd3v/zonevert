@@ -13,6 +13,10 @@ const state = {
 const els = {
   ffmpegStatus: document.getElementById("ffmpegStatus"),
   ffmpegStatusText: document.getElementById("ffmpegStatusText"),
+  summaryFiles: document.getElementById("summaryFiles"),
+  summaryFormat: document.getElementById("summaryFormat"),
+  summaryQuality: document.getElementById("summaryQuality"),
+  summaryOutput: document.getElementById("summaryOutput"),
   addFilesButton: document.getElementById("addFilesButton"),
   clearFilesButton: document.getElementById("clearFilesButton"),
   dropTarget: document.getElementById("dropTarget"),
@@ -41,8 +45,10 @@ const els = {
   commandPreview: document.getElementById("commandPreview"),
   copyCommandButton: document.getElementById("copyCommandButton"),
   convertButton: document.getElementById("convertButton"),
+  convertButtonText: document.getElementById("convertButtonText"),
   cancelButton: document.getElementById("cancelButton"),
   queueSummary: document.getElementById("queueSummary"),
+  queueProgressBar: document.getElementById("queueProgressBar"),
   queueList: document.getElementById("queueList"),
   logSummary: document.getElementById("logSummary"),
   logOutput: document.getElementById("logOutput"),
@@ -365,15 +371,27 @@ function renderOutput() {
   els.outputFolderText.textContent = state.outputDir || "Same folder as each source";
 }
 
+function renderSummary() {
+  const formatLabel = els.formatSelect.options[els.formatSelect.selectedIndex]?.textContent || els.formatSelect.value.toUpperCase();
+
+  els.summaryFiles.textContent = String(state.files.length);
+  els.summaryFormat.textContent = formatLabel;
+  els.summaryQuality.textContent = String(getQuality());
+  els.summaryOutput.textContent = state.outputDir ? "Folder" : "Source";
+}
+
 function renderQueue() {
   const pending = state.queue.filter((item) => item.status === "pending").length;
   const running = state.queue.filter((item) => item.status === "running").length;
   const done = state.queue.filter((item) => item.status === "done").length;
   const failed = state.queue.filter((item) => item.status === "failed").length;
+  const finished = done + failed;
+  const progress = state.queue.length ? Math.round((finished / state.queue.length) * 100) : 0;
 
   els.queueSummary.textContent = state.queue.length
     ? `${pending} pending · ${running} running · ${done} done · ${failed} failed`
     : "0 pending";
+  els.queueProgressBar.style.width = `${progress}%`;
 
   if (!state.queue.length) {
     els.queueList.innerHTML = `
@@ -436,6 +454,8 @@ function renderCommand() {
 function renderControls() {
   els.convertButton.disabled = !canRunConversion();
   els.cancelButton.disabled = !state.isConverting || !state.activeJobId;
+  els.convertButtonText.textContent = state.isConverting ? "Converting" : "Convert";
+  els.convertButton.classList.toggle("is-busy", state.isConverting);
 
   if (!api) {
     els.convertButton.disabled = true;
@@ -447,6 +467,7 @@ function renderControls() {
 function renderAll() {
   renderFiles();
   renderOutput();
+  renderSummary();
   renderResizeSummary();
   renderCommand();
   renderQueue();
@@ -721,6 +742,7 @@ function init() {
     appendLog("Open with Electron to select folders and run FFmpeg.\n");
   } else {
     probeFfmpeg();
+    els.logOutput.textContent = "Ready.\n";
   }
 
   renderAll();
