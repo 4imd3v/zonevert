@@ -1,11 +1,13 @@
 const api = window.zonevert;
+const conversionPlan = window.ZonevertConversionPlan;
+const queueState = window.ZonevertQueueState;
 
 const state = {
   files: [],
   outputDir: "",
-  ffmpegOk: false,
   activeJobId: "",
   isConverting: false,
+  cancelRequested: false,
   queue: [],
   logs: []
 };
@@ -55,258 +57,42 @@ const els = {
   clearLogButton: document.getElementById("clearLogButton")
 };
 
-const presetDefaults = {
-  balanced: {
-    quality: 82
-  },
-  quality: {
-    quality: 94
-  },
-  small: {
-    quality: 64
-  },
-  lossless: {
-    quality: 100
-  }
-};
-
-const encoderArgs = {
-  webp: (quality, preset) => {
-    if (preset === "lossless") {
-      return ["-c:v", "libwebp", "-lossless", "1"];
-    }
-
-    return ["-c:v", "libwebp", "-q:v", String(quality)];
-  },
-  jpg: (quality) => ["-c:v", "mjpeg", "-q:v", jpegQualityScale(quality)],
-  png: (_quality, preset) => ["-c:v", "png", "-compression_level", pngCompressionLevel(preset)],
-  avif: (quality) => ["-c:v", "libaom-av1", "-crf", avifCrfScale(quality), "-still-picture", "1"],
-  tiff: () => ["-c:v", "tiff"],
-  bmp: () => ["-c:v", "bmp"],
-  gif: () => ["-c:v", "gif"]
-};
-
-function jpegQualityScale(quality) {
-  const value = 31 - Math.round((clamp(quality, 1, 100) / 100) * 29);
-  return String(clamp(value, 2, 31));
-}
-
-function avifCrfScale(quality) {
-  const value = 63 - Math.round((clamp(quality, 1, 100) / 100) * 63);
-  return String(clamp(value, 0, 63));
-}
-
-function pngCompressionLevel(preset) {
-  if (preset === "small") {
-    return "9";
-  }
-
-  if (preset === "quality") {
-    return "3";
-  }
-
-  return "6";
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function parseArgs(value) {
-  const input = String(value || "").trim();
-
-  if (!input) {
-    return [];
-  }
-
-  const args = [];
-  let current = "";
-  let quote = "";
-  let escaping = false;
-
-  for (const char of input) {
-    if (escaping) {
-      current += char;
-      escaping = false;
-      continue;
-    }
-
-    if (char === "\\" && quote === "\"") {
-      escaping = true;
-      continue;
-    }
-
-    if (quote) {
-      if (char === quote) {
-        quote = "";
-      } else {
-        current += char;
-      }
-      continue;
-    }
-
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (current) {
-        args.push(current);
-        current = "";
-      }
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (escaping) {
-    current += "\\";
-  }
-
-  if (current) {
-    args.push(current);
-  }
-
-  return args;
-}
-
-function formatPathForCommand(value) {
-  const text = String(value || "");
-
-  if (!text) {
-    return "";
-  }
-
-  if (!/[\s"'()]/.test(text)) {
-    return text;
-  }
-
-  return `"${text.replaceAll("\"", "\\\"")}"`;
-}
-
-function isWindowsPath(filePath) {
-  return /^[a-z]:\\/i.test(filePath);
-}
-
-function dirname(filePath) {
-  const separator = isWindowsPath(filePath) || filePath.includes("\\") ? "\\" : "/";
-  const index = filePath.lastIndexOf(separator);
-  return index >= 0 ? filePath.slice(0, index) : "";
-}
-
-function basename(filePath) {
-  const normalized = String(filePath || "").replaceAll("\\", "/");
-  return normalized.split("/").pop() || "";
-}
-
-function extension(name) {
-  const fileName = basename(name);
-  const index = fileName.lastIndexOf(".");
-  return index > 0 ? fileName.slice(index + 1).toLowerCase() : "";
-}
-
-function stem(name) {
-  const fileName = basename(name);
-  const index = fileName.lastIndexOf(".");
-  return index > 0 ? fileName.slice(0, index) : fileName;
-}
-
-function joinPath(directory, fileName) {
-  if (!directory) {
-    return fileName;
-  }
-
-  const separator = isWindowsPath(directory) || directory.includes("\\") ? "\\" : "/";
-  return `${directory.replace(/[\\/]+$/, "")}${separator}${fileName}`;
-}
-
 function getQuality() {
   return Number.parseInt(els.qualityInput.value, 10);
 }
 
-function getFfmpegPath() {
-  return els.ffmpegPathInput.value.trim() || "ffmpeg";
-}
-
-function getOutputDirectory(file) {
-  return state.outputDir || dirname(file.path);
-}
-
-function getOutputPath(file) {
-  const format = els.formatSelect.value;
-  const sourceExt = extension(file.name || file.path);
-  const normalizedSourceExt = sourceExt === "jpeg" ? "jpg" : sourceExt;
-  const outputStem = normalizedSourceExt === format ? `${stem(file.name || file.path)}-converted` : stem(file.name || file.path);
-  const outputName = `${outputStem}.${format}`;
-  return joinPath(getOutputDirectory(file), outputName);
-}
-
-function buildResizeFilter() {
-  const mode = els.resizeModeSelect.value;
-  const width = Number.parseInt(els.widthInput.value, 10);
-  const height = Number.parseInt(els.heightInput.value, 10);
-  const hasWidth = Number.isFinite(width) && width > 0;
-  const hasHeight = Number.isFinite(height) && height > 0;
-
-  if (mode === "none" || (!hasWidth && !hasHeight)) {
-    return "";
-  }
-
-  const w = hasWidth ? width : -1;
-  const h = hasHeight ? height : -1;
-
-  if (mode === "stretch") {
-    return `scale=${w}:${h}`;
-  }
-
-  if (mode === "fill" && hasWidth && hasHeight) {
-    return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
-  }
-
-  return `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
-}
-
-function buildFilterGraph() {
-  return [buildResizeFilter(), els.filterInput.value.trim()].filter(Boolean).join(",");
-}
-
-function buildArgs(file) {
-  const format = els.formatSelect.value;
-  const preset = els.presetSelect.value;
-  const quality = getQuality();
-  const filterGraph = buildFilterGraph();
-  const args = [
-    "-hide_banner",
-    ...parseArgs(els.globalArgsInput.value),
-    els.overwriteInput.checked ? "-y" : "-n",
-    ...parseArgs(els.inputArgsInput.value),
-    "-i",
-    file.path
-  ];
-
-  if (!els.metadataInput.checked) {
-    args.push("-map_metadata", "-1");
-  }
-
-  if (filterGraph) {
-    args.push("-vf", filterGraph);
-  }
-
-  args.push(...(encoderArgs[format]?.(quality, preset) || []));
-  args.push(...parseArgs(els.outputArgsInput.value));
-  args.push(getOutputPath(file));
-
-  return args;
+function getConversionIntent() {
+  return conversionPlan.createConversionIntent({
+    format: els.formatSelect.value,
+    preset: els.presetSelect.value,
+    quality: getQuality(),
+    overwrite: els.overwriteInput.checked,
+    keepMetadata: els.metadataInput.checked,
+    outputDir: state.outputDir,
+    ffmpegPath: els.ffmpegPathInput.value,
+    resizeMode: els.resizeModeSelect.value,
+    width: els.widthInput.value,
+    height: els.heightInput.value,
+    globalArgsText: els.globalArgsInput.value,
+    inputArgsText: els.inputArgsInput.value,
+    filterText: els.filterInput.value,
+    outputArgsText: els.outputArgsInput.value
+  });
 }
 
 function buildCommand(file = state.files[0]) {
+  const intent = getConversionIntent();
+
   if (!file) {
-    return `${getFfmpegPath()} -hide_banner -i source.png output.${els.formatSelect.value}`;
+    return conversionPlan.formatCommand([intent.ffmpegPath, "-hide_banner", "-i", "source.png", `output.${intent.format}`], {
+      platform: api?.platform
+    });
   }
 
-  return [getFfmpegPath(), ...buildArgs(file)].map(formatPathForCommand).join(" ");
+  const plan = conversionPlan.planConversion(file, intent);
+  return conversionPlan.formatCommand([intent.ffmpegPath, ...plan.args], {
+    platform: api?.platform
+  });
 }
 
 function canRunConversion() {
@@ -355,8 +141,8 @@ function renderFiles() {
       (file, index) => `
         <div class="file-row">
           <div>
-            <strong>${escapeHtml(file.name || basename(file.path))}</strong>
-            <span>${escapeHtml(extension(file.name || file.path).toUpperCase() || "IMAGE")}</span>
+            <strong>${escapeHtml(file.name || conversionPlan.basename(file.path))}</strong>
+            <span>${escapeHtml(conversionPlan.extension(file.name || file.path).toUpperCase() || "IMAGE")}</span>
           </div>
           <button class="icon-button file-remove-button" type="button" aria-label="Remove ${escapeHtml(file.name || "file")}" title="Remove" data-index="${index}">
             <svg><use href="#icon-x"></use></svg>
@@ -381,17 +167,10 @@ function renderSummary() {
 }
 
 function renderQueue() {
-  const pending = state.queue.filter((item) => item.status === "pending").length;
-  const running = state.queue.filter((item) => item.status === "running").length;
-  const done = state.queue.filter((item) => item.status === "done").length;
-  const failed = state.queue.filter((item) => item.status === "failed").length;
-  const finished = done + failed;
-  const progress = state.queue.length ? Math.round((finished / state.queue.length) * 100) : 0;
+  const summary = queueState.summarizeQueue(state.queue);
 
-  els.queueSummary.textContent = state.queue.length
-    ? `${pending} pending · ${running} running · ${done} done · ${failed} failed`
-    : "0 pending";
-  els.queueProgressBar.style.width = `${progress}%`;
+  els.queueSummary.textContent = summary.text;
+  els.queueProgressBar.style.width = `${summary.progress}%`;
 
   if (!state.queue.length) {
     els.queueList.innerHTML = `
@@ -408,34 +187,18 @@ function renderQueue() {
       (item) => `
         <div class="queue-row queue-row--${item.status}">
           <div>
-            <strong>${escapeHtml(item.file.name || basename(item.file.path))}</strong>
+            <strong>${escapeHtml(item.file.name || conversionPlan.basename(item.file.path))}</strong>
             <span>${escapeHtml(item.outputPath)}</span>
           </div>
-          <span>${statusLabel(item.status)}</span>
+          <span>${queueState.statusLabel(item.status)}</span>
         </div>
       `
     )
     .join("");
 }
 
-function statusLabel(status) {
-  if (status === "running") {
-    return "Running";
-  }
-
-  if (status === "done") {
-    return "Done";
-  }
-
-  if (status === "failed") {
-    return "Failed";
-  }
-
-  return "Pending";
-}
-
 function renderResizeSummary() {
-  const filter = buildResizeFilter();
+  const filter = conversionPlan.buildResizeFilter(getConversionIntent().resize);
   els.resizeSummary.textContent = filter || "Original dimensions";
 }
 
@@ -453,7 +216,7 @@ function renderCommand() {
 
 function renderControls() {
   els.convertButton.disabled = !canRunConversion();
-  els.cancelButton.disabled = !state.isConverting || !state.activeJobId;
+  els.cancelButton.disabled = !state.isConverting || !state.activeJobId || state.cancelRequested;
   els.convertButtonText.textContent = state.isConverting ? "Converting" : "Convert";
   els.convertButton.classList.toggle("is-busy", state.isConverting);
 
@@ -542,10 +305,8 @@ async function probeFfmpeg() {
   const result = await api.probeFFmpeg(els.ffmpegPathInput.value);
 
   if (result.ok) {
-    state.ffmpegOk = true;
     setFfmpegStatus("ok", result.version || "FFmpeg ready");
   } else {
-    state.ffmpegOk = false;
     setFfmpegStatus("warn", "FFmpeg not found");
     appendLog(`FFmpeg probe failed: ${result.error || "Unknown error"}\n`);
   }
@@ -553,14 +314,8 @@ async function probeFfmpeg() {
   renderControls();
 }
 
-function prepareQueue() {
-  state.queue = state.files.map((file) => ({
-    id: crypto.randomUUID(),
-    file,
-    args: buildArgs(file),
-    outputPath: getOutputPath(file),
-    status: "pending"
-  }));
+function prepareQueue(intent) {
+  state.queue = queueState.createQueue(state.files, intent, conversionPlan.planConversion);
 }
 
 async function runConversion() {
@@ -568,34 +323,43 @@ async function runConversion() {
     return;
   }
 
-  prepareQueue();
+  const intent = getConversionIntent();
+
+  prepareQueue(intent);
   state.isConverting = true;
+  state.cancelRequested = false;
   setLogSummary("Running");
   appendLog(`Starting ${state.queue.length} conversion${state.queue.length === 1 ? "" : "s"}.\n`);
   renderAll();
 
   for (const item of state.queue) {
-    if (!state.isConverting) {
-      item.status = "failed";
+    if (state.cancelRequested) {
+      queueState.markCanceled(item);
       continue;
     }
 
-    item.status = "running";
+    queueState.markRunning(item);
     state.activeJobId = item.id;
-    appendLog(`\n$ ${[getFfmpegPath(), ...item.args].map(formatPathForCommand).join(" ")}\n`);
+    appendLog(
+      `\n$ ${conversionPlan.formatCommand([intent.ffmpegPath, ...item.args], {
+        platform: api?.platform
+      })}\n`
+    );
     renderAll();
 
     const result = await api.convert({
       jobId: item.id,
-      ffmpegPath: els.ffmpegPathInput.value,
+      ffmpegPath: intent.ffmpegPath,
       args: item.args
     });
 
-    if (result.ok) {
-      item.status = "done";
+    queueState.markResult(item, result, state.cancelRequested);
+
+    if (item.status === "canceled") {
+      appendLog(`Canceled: ${item.outputPath}\n`);
+    } else if (item.status === "done") {
       appendLog(`Finished: ${item.outputPath}\n`);
     } else {
-      item.status = "failed";
       appendLog(`Failed: ${result.error || "Unknown FFmpeg error"}\n`);
     }
 
@@ -605,8 +369,10 @@ async function runConversion() {
 
   state.isConverting = false;
   state.activeJobId = "";
+  const wasCanceled = state.cancelRequested;
+  state.cancelRequested = false;
   setLogSummary("Idle");
-  appendLog("\nQueue finished.\n");
+  appendLog(wasCanceled ? "\nQueue canceled.\n" : "\nQueue finished.\n");
   renderAll();
 }
 
@@ -616,7 +382,7 @@ async function cancelCurrentJob() {
   }
 
   await api.cancel(state.activeJobId);
-  state.isConverting = false;
+  state.cancelRequested = true;
   appendLog("\nCancel requested.\n");
   setLogSummary("Canceling");
   renderAll();
@@ -634,7 +400,7 @@ async function copyCommand() {
 }
 
 function applyPreset() {
-  const preset = presetDefaults[els.presetSelect.value];
+  const preset = conversionPlan.PRESET_DEFAULTS[els.presetSelect.value];
 
   if (!preset) {
     return;

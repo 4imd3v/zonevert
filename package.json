@@ -9,7 +9,8 @@
     "postinstall": "node scripts/install-electron-runtime.cjs",
     "start": "electron --no-sandbox .",
     "start:sandboxed": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/conversion-plan.js && node --check src/queue-state.js && node --check src/ipc-validation.js && node --check scripts/install-electron-runtime.cjs && node --check scripts/clean-artifacts.cjs && node --test tests/*.test.cjs",
+    "clean": "node scripts/clean-artifacts.cjs",
     "package:linux": "electron-builder --linux AppImage deb",
     "package:windows": "electron-builder --win nsis portable"
   },

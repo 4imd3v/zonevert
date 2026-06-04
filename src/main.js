@@ -1,6 +1,11 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
+const {
+  validateCancelPayload,
+  validateConversionPayload,
+  validateProbePayload
+} = require("./ipc-validation");
 
 const runningProcesses = new Map();
 
@@ -63,17 +68,9 @@ function runProbe(ffmpegPath) {
   });
 }
 
-function runConversion(event, payload) {
+function runConversion(event, request) {
   return new Promise((resolve) => {
-    const { jobId, ffmpegPath, args } = payload;
-
-    if (!jobId || !Array.isArray(args)) {
-      resolve({
-        ok: false,
-        error: "Invalid conversion request."
-      });
-      return;
-    }
+    const { jobId, ffmpegPath, args } = request;
 
     const child = spawn(resolveFfmpegPath(ffmpegPath), args, {
       windowsHide: true
@@ -186,15 +183,33 @@ ipcMain.handle("dialog:select-output-dir", async () => {
 });
 
 ipcMain.handle("ffmpeg:probe", async (_event, payload = {}) => {
-  return runProbe(payload.ffmpegPath);
+  const validation = validateProbePayload(payload);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  return runProbe(validation.value.ffmpegPath);
 });
 
 ipcMain.handle("ffmpeg:convert", async (event, payload = {}) => {
-  return runConversion(event, payload);
+  const validation = validateConversionPayload(payload);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  return runConversion(event, validation.value);
 });
 
 ipcMain.handle("ffmpeg:cancel", async (_event, payload = {}) => {
-  const child = runningProcesses.get(payload.jobId);
+  const validation = validateCancelPayload(payload);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const child = runningProcesses.get(validation.value.jobId);
 
   if (!child) {
     return {

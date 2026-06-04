@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("zonevert", {
+  platform: process.platform,
   selectImages: () => ipcRenderer.invoke("dialog:select-images"),
   selectOutputDir: () => ipcRenderer.invoke("dialog:select-output-dir"),
   probeFFmpeg: (ffmpegPath) => ipcRenderer.invoke("ffmpeg:probe", { ffmpegPath }),

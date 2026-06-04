@@ -481,6 +481,11 @@ svg {
   color: var(--danger);
 }
 
+.queue-row--canceled > span {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
