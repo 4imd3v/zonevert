@@ -2,6 +2,7 @@
   "name": "zonevert",
   "version": "0.1.0",
   "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
+  "homepage": "https://zonevert.dev",
   "main": "src/main.js",
   "packageManager": "pnpm@11.3.0",
   "private": true,
@@ -33,7 +34,9 @@
         "AppImage",
         "deb"
       ],
-      "category": "Graphics"
+      "category": "Graphics",
+      "maintainer": "Zonevert Maintainers <maintainers@zonevert.dev>",
+      "vendor": "Zonevert"
     },
     "win": {
       "target": [
