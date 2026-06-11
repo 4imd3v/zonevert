@@ -4,7 +4,7 @@
   "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
   "homepage": "https://zonevert.dev",
   "main": "src/main.js",
-  "packageManager": "pnpm@11.3.0",
+  "packageManager": "pnpm@11.5.3",
   "private": true,
   "scripts": {
     "postinstall": "node scripts/install-electron-runtime.cjs",
