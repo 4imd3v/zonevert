@@ -44,3 +44,6 @@ Desktop.ini
 .vscode/
 *.swp
 *.swo
+
+# AI Agents
+.codegraph/
