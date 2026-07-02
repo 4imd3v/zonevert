@@ -20,8 +20,8 @@
         "typecheck": "tsc --noEmit",
         "clean": "node scripts/clean-artifacts.cjs",
         "dev": "node scripts/dev.js",
-        "package:linux": "electron-builder --linux AppImage deb",
-        "package:windows": "electron-builder --win nsis portable"
+        "package:linux": "electron-builder --linux AppImage deb --publish never",
+        "package:windows": "electron-builder --win nsis portable --publish never"
     },
     "devDependencies": {
         "@types/node": "^24.0.0",
