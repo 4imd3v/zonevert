@@ -66,10 +66,10 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 - [x] Add a unit test in `tests/queue-state.test.cjs` covering multi-file stem collision
 - [x] Show the resolved output path in the queue list UI
 
-### F12. Collision strategy options (partial)
-- [ ] Add a setting: "When output exists" with three modes: `overwrite` (current `-y`), `skip` (check existence, skip if file present), `rename` (auto-append number)
-- [ ] For `skip` mode, use Node `fs.existsSync` in the main process before launching FFmpeg
-- [ ] Expose via a new IPC handler: `ffmpeg:check-exists`
+### F12. Collision strategy options ✅
+- [x] Add a setting: "When output exists" with three modes: `overwrite` (current `-y`), `skip` (check existence, skip if file present), `rename` (auto-append number)
+- [x] For `skip` mode, use Node `fs.existsSync` in the main process before launching FFmpeg
+- [x] Expose via a new IPC handler: `fs:check-exists`
 - [x] Update `queue-state.js` to support a `skipped` status
 
 ### F9. Retry failed conversions ✅
@@ -78,14 +78,14 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 - [x] On click, reset all failed items to `pending` and re-run the conversion loop
 - [x] Add `resetFailed(queue)` to `queue-state.js` with a unit test
 
-### F10. Output filename customization
-- [ ] Add a "Naming" section with options:
+### F10. Output filename customization ✅
+- [x] Add a "Naming" section with options:
   - Suffix field (default: empty; `-converted` for same-format)
   - Prefix field (default: empty)
   - Sequential numbering toggle (001, 002, 003…)
   - Zero-padding width selector (1-5 digits)
-- [ ] Update `getOutputPath()` in `conversion-plan.js` to accept a naming config
-- [ ] Add unit tests for each naming mode
+- [x] Update `getOutputPath()` in `conversion-plan.js` to accept a naming config
+- [x] Add unit tests for each naming mode
 
 ---
 
@@ -137,7 +137,7 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 ### P4. Per-file progress parsing ✅
 - [x] Parse FFmpeg stderr lines for `frame=`, `fps=`, `time=` in `progress-parser.js`
 - [x] Show a per-file progress bar or percentage in each queue row
-- [ ] Show an overall ETA based on average conversion time × remaining files
+- [x] Show an overall ETA based on average conversion time × remaining files
 - [x] Module: `src/progress-parser.js` (UMD pattern, same as existing modules)
 - [x] Test: feed sample FFmpeg stderr output and verify parsed values
 

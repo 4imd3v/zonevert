@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, Notification, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const {
   validateCancelPayload,
@@ -262,6 +263,18 @@ ipcMain.handle("ffmpeg:cancel", async (_event, payload = {}) => {
   return {
     ok: true
   };
+});
+
+ipcMain.handle("fs:check-exists", async (_event, payload = {}) => {
+  if (!payload || typeof payload.path !== "string" || !payload.path.trim()) {
+    return { ok: false, error: "Path is required." };
+  }
+
+  try {
+    return { ok: true, exists: fsSync.existsSync(payload.path) };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
 });
 
 ipcMain.handle("notification:show", async (_event, payload = {}) => {

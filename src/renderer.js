@@ -13,7 +13,8 @@ const state = {
   logs: [],
   logStreamCleanup: null,
   renderTimer: null,
-  settingsLoaded: false
+  settingsLoaded: false,
+  conversionTimes: []
 };
 
 const els = {
@@ -37,6 +38,12 @@ const els = {
   qualityValue: document.getElementById("qualityValue"),
   overwriteInput: document.getElementById("overwriteInput"),
   metadataInput: document.getElementById("metadataInput"),
+  collisionModeSelect: document.getElementById("collisionModeSelect"),
+  namePrefixInput: document.getElementById("namePrefixInput"),
+  nameSuffixInput: document.getElementById("nameSuffixInput"),
+  sequentialInput: document.getElementById("sequentialInput"),
+  padWidthInput: document.getElementById("padWidthInput"),
+  namingSummary: document.getElementById("namingSummary"),
   resizeModeSelect: document.getElementById("resizeModeSelect"),
   widthInput: document.getElementById("widthInput"),
   heightInput: document.getElementById("heightInput"),
@@ -79,12 +86,19 @@ function getConversionIntent() {
     preset: els.presetSelect.value,
     quality: getQuality(),
     overwrite: els.overwriteInput.checked,
+    collisionMode: els.collisionModeSelect.value,
     keepMetadata: els.metadataInput.checked,
     outputDir: state.outputDir,
     ffmpegPath: els.ffmpegPathInput.value,
     resizeMode: els.resizeModeSelect.value,
     width: els.widthInput.value,
     height: els.heightInput.value,
+    naming: {
+      prefix: els.namePrefixInput.value,
+      suffix: els.nameSuffixInput.value,
+      sequential: els.sequentialInput.checked,
+      padWidth: els.padWidthInput.value
+    },
     globalArgsText: els.globalArgsInput.value,
     inputArgsText: els.inputArgsInput.value,
     filterText: els.filterInput.value,
@@ -207,10 +221,24 @@ function formatItemProgress(item) {
   return parts.join(" · ");
 }
 
+function formatEta(times, queue) {
+  if (!times.length || !queue.length) return "";
+  const pending = queue.filter((item) => item.status === "pending").length;
+  if (!pending) return "";
+  const avgMs = times.reduce((sum, t) => sum + t, 0) / times.length;
+  const etaMs = avgMs * pending;
+  const etaSec = Math.round(etaMs / 1000);
+  if (etaSec < 60) return `~${etaSec}s left`;
+  const min = Math.floor(etaSec / 60);
+  const sec = etaSec % 60;
+  return `~${min}m ${sec}s left`;
+}
+
 function renderQueue() {
   const summary = queueState.summarizeQueue(state.queue);
 
-  els.queueSummary.textContent = summary.text;
+  const eta = state.isConverting ? formatEta(state.conversionTimes, state.queue) : "";
+  els.queueSummary.textContent = eta ? `${summary.text} · ${eta}` : summary.text;
   els.queueProgressBar.style.width = `${summary.progress}%`;
 
   if (!state.queue.length) {
@@ -276,6 +304,22 @@ function renderResizeSummary() {
   els.resizeSummary.textContent = filter || "Original dimensions";
 }
 
+function renderNamingSummary() {
+  const intent = getConversionIntent();
+  const naming = intent.naming;
+
+  if (naming.sequential) {
+    els.namingSummary.textContent = `Sequential (${"1".padStart(naming.padWidth, "0")}, ${"2".padStart(naming.padWidth, "0")}, …).${intent.format}`;
+  } else {
+    const parts = [];
+    if (naming.prefix) parts.push(naming.prefix);
+    parts.push("name");
+    if (naming.suffix) parts.push(naming.suffix);
+    else if (!naming.suffix) parts.push("(auto)");
+    els.namingSummary.textContent = `${parts.join("")}.${intent.format}`;
+  }
+}
+
 function renderCommand() {
   els.commandPreview.textContent = buildCommand();
 
@@ -310,6 +354,7 @@ function renderAll() {
   renderOutput();
   renderSummary();
   renderResizeSummary();
+  renderNamingSummary();
   renderCommand();
   renderQueue();
   renderControls();
@@ -357,10 +402,15 @@ const SETTINGS_FIELDS = [
   "preset",
   "quality",
   "overwrite",
+  "collisionMode",
   "metadata",
   "resizeMode",
   "width",
   "height",
+  "namePrefix",
+  "nameSuffix",
+  "sequential",
+  "padWidth",
   "ffmpegPath",
   "concurrency",
   "globalArgs",
@@ -375,10 +425,15 @@ function collectSettings() {
     preset: els.presetSelect.value,
     quality: els.qualityInput.value,
     overwrite: els.overwriteInput.checked,
+    collisionMode: els.collisionModeSelect.value,
     metadata: els.metadataInput.checked,
     resizeMode: els.resizeModeSelect.value,
     width: els.widthInput.value,
     height: els.heightInput.value,
+    namePrefix: els.namePrefixInput.value,
+    nameSuffix: els.nameSuffixInput.value,
+    sequential: els.sequentialInput.checked,
+    padWidth: els.padWidthInput.value,
     ffmpegPath: els.ffmpegPathInput.value,
     concurrency: els.concurrencyInput.value,
     globalArgs: els.globalArgsInput.value,
@@ -430,10 +485,16 @@ function loadSettings() {
   if (typeof stored.preset === "string") els.presetSelect.value = stored.preset;
   if (typeof stored.quality === "string" || typeof stored.quality === "number") els.qualityInput.value = stored.quality;
   if (typeof stored.overwrite === "boolean") els.overwriteInput.checked = stored.overwrite;
+  if (typeof stored.collisionMode === "string") els.collisionModeSelect.value = stored.collisionMode;
   if (typeof stored.metadata === "boolean") els.metadataInput.checked = stored.metadata;
   if (typeof stored.resizeMode === "string") els.resizeModeSelect.value = stored.resizeMode;
   if (typeof stored.width === "string" || typeof stored.width === "number") els.widthInput.value = stored.width;
   if (typeof stored.height === "string" || typeof stored.height === "number") els.heightInput.value = stored.height;
+  if (typeof stored.namePrefix === "string") els.namePrefixInput.value = stored.namePrefix;
+  if (typeof stored.nameSuffix === "string") els.nameSuffixInput.value = stored.nameSuffix;
+  if (typeof stored.sequential === "boolean") els.sequentialInput.checked = stored.sequential;
+  if (typeof stored.padWidth === "string" || typeof stored.padWidth === "number") els.padWidthInput.value = stored.padWidth;
+  els.padWidthInput.disabled = !els.sequentialInput.checked;
   if (typeof stored.ffmpegPath === "string") els.ffmpegPathInput.value = stored.ffmpegPath;
   if (typeof stored.concurrency === "string" || typeof stored.concurrency === "number") els.concurrencyInput.value = stored.concurrency;
   if (typeof stored.globalArgs === "string") els.globalArgsInput.value = stored.globalArgs;
@@ -547,7 +608,17 @@ async function probeFfmpeg() {
 }
 
 function prepareQueue(intent) {
-  state.queue = queueState.createQueue(state.files, intent, conversionPlan.planConversion);
+  state.queue = state.files.map((file, index) => {
+    const plan = conversionPlan.planConversion(file, intent, index);
+    return {
+      id: queueState.defaultCreateId ? queueState.defaultCreateId() : `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+      file,
+      args: plan.args,
+      outputPath: plan.outputPath,
+      status: "pending"
+    };
+  });
+  queueState.resolveCollisions(state.queue);
 }
 
 function getConcurrency() {
@@ -556,6 +627,16 @@ function getConcurrency() {
 }
 
 async function runConversionItem(item, intent) {
+  if (intent.collisionMode === "skip" && api?.checkExists) {
+    const exists = await api.checkExists(item.outputPath);
+    if (exists.ok && exists.exists) {
+      queueState.markSkipped(item);
+      appendLog(`Skipped (already exists): ${item.outputPath}\n`);
+      renderAll();
+      return;
+    }
+  }
+
   queueState.markRunning(item);
   appendLog(
     `\n$ ${conversionPlan.formatCommand([intent.ffmpegPath, ...item.args], {
@@ -564,11 +645,20 @@ async function runConversionItem(item, intent) {
   );
   renderAll();
 
+  const startTime = Date.now();
   const result = await api.convert({
     jobId: item.id,
     ffmpegPath: intent.ffmpegPath,
     args: item.args
   });
+
+  if (item.status !== "skipped") {
+    const elapsed = Date.now() - startTime;
+    state.conversionTimes.push(elapsed);
+    if (state.conversionTimes.length > 50) {
+      state.conversionTimes.shift();
+    }
+  }
 
   queueState.markResult(item, result, state.cancelRequested);
 
@@ -811,10 +901,16 @@ function resetSettings() {
   els.qualityInput.value = "82";
   els.qualityValue.textContent = "82";
   els.overwriteInput.checked = true;
+  els.collisionModeSelect.value = "overwrite";
   els.metadataInput.checked = false;
   els.resizeModeSelect.value = "none";
   els.widthInput.value = "";
   els.heightInput.value = "";
+  els.namePrefixInput.value = "";
+  els.nameSuffixInput.value = "";
+  els.sequentialInput.checked = false;
+  els.padWidthInput.value = "3";
+  els.padWidthInput.disabled = true;
   els.ffmpegPathInput.value = "";
   els.concurrencyInput.value = "1";
   els.globalArgsInput.value = "";
@@ -913,10 +1009,14 @@ function setupListeners() {
   [
     els.formatSelect,
     els.overwriteInput,
+    els.collisionModeSelect,
     els.metadataInput,
     els.resizeModeSelect,
     els.widthInput,
     els.heightInput,
+    els.namePrefixInput,
+    els.nameSuffixInput,
+    els.padWidthInput,
     els.ffmpegPathInput,
     els.concurrencyInput,
     els.globalArgsInput,
@@ -932,6 +1032,11 @@ function setupListeners() {
     els.qualityValue.textContent = els.qualityInput.value;
     scheduleRender();
   }, "qualityInput"));
+
+  els.sequentialInput.addEventListener("change", safe(() => {
+    els.padWidthInput.disabled = !els.sequentialInput.checked;
+    renderAll();
+  }, "sequentialToggle"));
 }
 
 function setupKeyboardShortcuts() {

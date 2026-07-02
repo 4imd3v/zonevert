@@ -90,3 +90,35 @@ test("formats copied commands with shell-sensitive paths", () => {
   assert.equal(formatCommand(["ffmpeg", "-i", "/tmp/a b's.png"], { platform: "linux" }), "ffmpeg -i '/tmp/a b'\\''s.png'");
   assert.equal(formatCommand(["ffmpeg", "-i", "C:\\A B\\photo.png"], { platform: "win32" }), 'ffmpeg -i "C:\\A B\\photo.png"');
 });
+
+test("applies custom prefix and suffix to output name", () => {
+  const intent = createConversionIntent({
+    format: "webp",
+    naming: { prefix: "thumb-", suffix: "-v2" }
+  });
+  const plan = planConversion({ path: "/in/photo.png", name: "photo.png" }, intent);
+  assert.equal(plan.outputPath, "/in/thumb-photo-v2.webp");
+});
+
+test("uses sequential numbering when enabled", () => {
+  const intent = createConversionIntent({
+    format: "webp",
+    naming: { sequential: true, padWidth: 3 }
+  });
+  const plan0 = planConversion({ path: "/in/a.png", name: "a.png" }, intent, 0);
+  const plan2 = planConversion({ path: "/in/b.png", name: "b.png" }, intent, 2);
+  assert.equal(plan0.outputPath, "/in/001.webp");
+  assert.equal(plan2.outputPath, "/in/003.webp");
+});
+
+test("defaults collision mode to overwrite", () => {
+  const intent = createConversionIntent({ format: "webp" });
+  assert.equal(intent.collisionMode, "overwrite");
+});
+
+test("skip collision mode suppresses overwrite flag", () => {
+  const intent = createConversionIntent({ format: "webp", collisionMode: "skip" });
+  const plan = planConversion({ path: "/in/a.png", name: "a.png" }, intent);
+  assert.equal(plan.args.includes("-y"), false);
+  assert.equal(plan.args.includes("-n"), true);
+});

@@ -188,6 +188,48 @@
                 <strong>Keep metadata</strong>
               </label>
             </div>
+
+            <label class="field">
+              <span>When output exists</span>
+              <select id="collisionModeSelect">
+                <option value="overwrite">Overwrite</option>
+                <option value="skip">Skip</option>
+                <option value="rename">Rename</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="panel" aria-labelledby="namingTitle">
+            <div class="panel-header">
+              <div>
+                <h2 id="namingTitle">Naming</h2>
+                <p id="namingSummary">Original name + format</p>
+              </div>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>Prefix</span>
+                <input id="namePrefixInput" type="text" spellcheck="false" placeholder="" />
+              </label>
+
+              <label class="field">
+                <span>Suffix</span>
+                <input id="nameSuffixInput" type="text" spellcheck="false" placeholder="-converted" />
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <label class="toggle">
+                <input id="sequentialInput" type="checkbox" />
+                <span></span>
+                <strong>Sequential numbers</strong>
+              </label>
+              <label class="field" style="grid-template-columns: auto 1fr; align-items: center; gap: 7px;">
+                <span>Pad</span>
+                <input id="padWidthInput" type="number" min="1" max="5" step="1" value="3" inputmode="numeric" disabled />
+              </label>
+            </div>
           </section>
 
           <section class="panel" aria-labelledby="resizeTitle">

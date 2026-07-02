@@ -26,6 +26,7 @@
   const supportedFormats = new Set(["webp", "jpg", "png", "avif", "tiff", "bmp", "gif"]);
   const supportedPresets = new Set(Object.keys(PRESET_DEFAULTS));
   const supportedResizeModes = new Set(["none", "inside", "fill", "stretch"]);
+  const supportedCollisionModes = new Set(["overwrite", "skip", "rename"]);
 
   const encoderArgs = {
     webp: (quality, preset) => {
@@ -52,6 +53,7 @@
       preset,
       quality,
       overwrite: options.overwrite !== false,
+      collisionMode: normalizeCollisionMode(options.collisionMode),
       keepMetadata: Boolean(options.keepMetadata),
       outputDir: String(options.outputDir || ""),
       ffmpegPath: normalizeFfmpegPath(options.ffmpegPath),
@@ -60,6 +62,7 @@
         width: positiveInteger(options.width),
         height: positiveInteger(options.height)
       },
+      naming: normalizeNaming(options.naming),
       advanced: {
         globalArgs: parseArgs(options.globalArgsText),
         inputArgs: parseArgs(options.inputArgsText),
@@ -69,9 +72,9 @@
     };
   }
 
-  function planConversion(file, intent) {
+  function planConversion(file, intent, index = 0) {
     const conversionIntent = intent || createConversionIntent();
-    const outputPath = getOutputPath(file, conversionIntent);
+    const outputPath = getOutputPath(file, conversionIntent, index);
     const args = buildArgs(file, conversionIntent, outputPath);
 
     return {
@@ -83,10 +86,11 @@
 
   function buildArgs(file, intent, outputPath = getOutputPath(file, intent)) {
     const filterGraph = buildFilterGraph(intent);
+    const overwrite = intent.overwrite && intent.collisionMode !== "skip";
     const args = [
       "-hide_banner",
       ...intent.advanced.globalArgs,
-      intent.overwrite ? "-y" : "-n",
+      overwrite ? "-y" : "-n",
       ...intent.advanced.inputArgs,
       "-i",
       file.path
@@ -136,13 +140,23 @@
     return `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
   }
 
-  function getOutputPath(file, intent) {
+  function getOutputPath(file, intent, index = 0) {
     const format = intent.format;
-    const sourceExt = extension(file.name || file.path);
-    const normalizedSourceExt = sourceExt === "jpeg" ? "jpg" : sourceExt;
-    const outputStem =
-      normalizedSourceExt === format ? `${stem(file.name || file.path)}-converted` : stem(file.name || file.path);
-    const outputName = `${outputStem}.${format}`;
+    const naming = intent.naming || { prefix: "", suffix: "", sequential: false, padWidth: 3 };
+    const fileName = file.name || file.path;
+    const fileStem = stem(fileName);
+    const sourceExt = extension(fileName);
+    const isSameFormat = (sourceExt === "jpeg" ? "jpg" : sourceExt) === format;
+
+    let outputName;
+
+    if (naming.sequential) {
+      const paddedIndex = String(index + 1).padStart(naming.padWidth, "0");
+      outputName = `${naming.prefix}${paddedIndex}${naming.suffix}.${format}`;
+    } else {
+      const suffix = naming.suffix || (isSameFormat ? "-converted" : "");
+      outputName = `${naming.prefix}${fileStem}${suffix}.${format}`;
+    }
 
     return joinPath(getOutputDirectory(file, intent), outputName);
   }
@@ -246,6 +260,22 @@
   function normalizeResizeMode(mode) {
     const value = String(mode || "").toLowerCase();
     return supportedResizeModes.has(value) ? value : "none";
+  }
+
+  function normalizeCollisionMode(mode) {
+    const value = String(mode || "").toLowerCase();
+    return supportedCollisionModes.has(value) ? value : "overwrite";
+  }
+
+  function normalizeNaming(naming) {
+    const source = naming && typeof naming === "object" ? naming : {};
+
+    return {
+      prefix: String(source.prefix || "").trim(),
+      suffix: String(source.suffix || "").trim(),
+      sequential: Boolean(source.sequential),
+      padWidth: clamp(positiveInteger(source.padWidth) || 3, 1, 5)
+    };
   }
 
   function normalizeQuality(quality, fallback) {
