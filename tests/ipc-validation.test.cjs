@@ -4,7 +4,7 @@ const {
   validateCancelPayload,
   validateConversionPayload,
   validateProbePayload
-} = require("../src/ipc-validation");
+} = require("../src/lib/logic/ipc-validation");
 
 test("normalizes valid IPC payloads", () => {
   assert.deepEqual(validateProbePayload({ ffmpegPath: " /usr/bin/ffmpeg " }), {

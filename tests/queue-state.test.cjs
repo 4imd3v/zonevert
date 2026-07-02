@@ -10,7 +10,7 @@ const {
   resolveCollisions,
   statusLabel,
   summarizeQueue
-} = require("../src/queue-state");
+} = require("../src/lib/logic/queue-state");
 
 test("creates queue items from planned conversions", () => {
   const files = [{ path: "/in/a.png", name: "a.png" }];

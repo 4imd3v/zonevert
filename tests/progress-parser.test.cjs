@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseLine, parseStderr, timeToSeconds } = require("../src/progress-parser");
+const { parseLine, parseStderr, timeToSeconds } = require("../src/lib/logic/progress-parser");
 
 test("parses a single FFmpeg progress line", () => {
   const result = parseLine("frame=  123 fps= 45 q=28.0 size=    1024kB time=00:00:05.12 bitrate=1638.4kbits/s");

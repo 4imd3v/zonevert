@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createConversionIntent, planConversion } = require("../src/conversion-plan");
+const { createConversionIntent, planConversion } = require("../src/lib/logic/conversion-plan");
 const {
   createQueue,
   markRunning,
@@ -8,7 +8,7 @@ const {
   markSkipped,
   summarizeQueue,
   resetFailed
-} = require("../src/queue-state");
+} = require("../src/lib/logic/queue-state");
 
 test("full queue lifecycle: create → run → mark → summarize", () => {
   const intent = createConversionIntent({ format: "webp", outputDir: "/out" });

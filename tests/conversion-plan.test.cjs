@@ -6,7 +6,7 @@ const {
   formatCommand,
   parseArgs,
   planConversion
-} = require("../src/conversion-plan");
+} = require("../src/lib/logic/conversion-plan");
 
 test("plans FFmpeg args from conversion intent", () => {
   const file = {
