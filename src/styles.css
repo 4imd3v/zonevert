@@ -547,6 +547,17 @@ svg {
   color: var(--info);
 }
 
+.queue-progress-text {
+  display: none;
+  color: var(--text-subtle);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.queue-row--running .queue-progress-text:not(:empty) {
+  display: block;
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -113,31 +113,33 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 - [x] Add `accesskey` attributes to key buttons as a lightweight alternative
 - [x] Show shortcut hints in button tooltips
 
-### F5. Export commands as shell/batch script
-- [ ] Add an "Export Script" button in the Command panel
-- [ ] Build the script content by iterating the queue and calling `formatCommand()` per item
-- [ ] On Electron: use `dialog.showSaveDialog` + `fs.writeFile` in the main process
-- [ ] On browser preview: download a `.txt` or `.sh` file via Blob URL
-- [ ] Platform-aware: `.sh` shebang on Linux, `.bat` on Windows
+### F5. Export commands as shell/batch script ✅
+- [x] Add an "Export Script" button in the Command panel
+- [x] Build the script content by iterating the queue and calling `formatCommand()` per item
+- [x] On Electron: use `dialog.showSaveDialog` + `fs.writeFile` in the main process
+- [x] On browser preview: download a `.txt` or `.sh` file via Blob URL
+- [x] Platform-aware: `.sh` shebang on Linux, `.bat` on Windows
 
-### F11. Log export
-- [ ] Add a "Save Log" button in the Log panel header
-- [ ] Write `state.logs.join("")` to a user-chosen file path
-- [ ] Suggest a filename like `zonevert-log-YYYY-MM-DD.txt`
+### F11. Log export ✅
+- [x] Add a "Save Log" button in the Log panel header
+- [x] Write `state.logs.join("")` to a user-chosen file path
+- [x] Suggest a filename like `zonevert-log-YYYY-MM-DD.txt`
 
-### P3. Parallel conversion (configurable concurrency)
-- [ ] Add a "Parallel jobs" setting (1-4, default 1)
-- [ ] Replace the sequential `for` loop in `runConversion()` with a concurrency pool
-- [ ] Update `queue-state.js` to support multiple `running` items simultaneously
-- [ ] Ensure the progress bar and summary still compute correctly
-- [ ] Show which jobs are running in the queue list (multiple `running` rows)
+### P3. Parallel conversion (configurable concurrency) ✅
+- [x] Add a "Parallel jobs" setting (1-8, default 1)
+- [x] Replace the sequential `for` loop in `runConversion()` with a concurrency pool
+- [x] Update `queue-state.js` to support multiple `running` items simultaneously
+- [x] Ensure the progress bar and summary still compute correctly
+- [x] Show which jobs are running in the queue list (multiple `running` rows)
+- [x] Cancel button kills all running processes in parallel mode
+- [x] Log streaming accepts logs from any running job
 
-### P4. Per-file progress parsing
-- [ ] Parse FFmpeg stderr lines for `frame=`, `fps=`, `time=` in `renderer.js` or a new `progress-parser.js`
-- [ ] Show a per-file progress bar or percentage in each queue row
+### P4. Per-file progress parsing ✅
+- [x] Parse FFmpeg stderr lines for `frame=`, `fps=`, `time=` in `progress-parser.js`
+- [x] Show a per-file progress bar or percentage in each queue row
 - [ ] Show an overall ETA based on average conversion time × remaining files
-- [ ] Module: `src/progress-parser.js` (UMD pattern, same as existing modules)
-- [ ] Test: feed sample FFmpeg stderr output and verify parsed values
+- [x] Module: `src/progress-parser.js` (UMD pattern, same as existing modules)
+- [x] Test: feed sample FFmpeg stderr output and verify parsed values
 
 ---
 

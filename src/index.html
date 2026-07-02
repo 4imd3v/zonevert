@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./styles.css" />
     <script defer src="./conversion-plan.js"></script>
     <script defer src="./queue-state.js"></script>
+    <script defer src="./progress-parser.js"></script>
     <script defer src="./renderer.js"></script>
   </head>
   <body>
@@ -232,6 +233,11 @@
             </label>
 
             <label class="field">
+              <span>Parallel jobs</span>
+              <input id="concurrencyInput" type="number" min="1" max="8" step="1" value="1" inputmode="numeric" />
+            </label>
+
+            <label class="field">
               <span>Global args</span>
               <input id="globalArgsInput" type="text" spellcheck="false" />
             </label>
@@ -274,6 +280,9 @@
               <button class="icon-button" id="copyCommandButton" type="button" aria-label="Copy command" title="Copy command (Ctrl+Shift+C)">
                 <svg><use href="#icon-copy"></use></svg>
               </button>
+              <button class="icon-button" id="exportScriptButton" type="button" aria-label="Export as script" title="Export commands as script">
+                <svg><use href="#icon-folder"></use></svg>
+              </button>
             </div>
             <pre id="commandPreview">ffmpeg</pre>
           </section>
@@ -314,6 +323,9 @@
               </div>
               <button class="icon-button" id="clearLogButton" type="button" aria-label="Clear log" title="Clear log">
                 <svg><use href="#icon-x"></use></svg>
+              </button>
+              <button class="icon-button" id="saveLogButton" type="button" aria-label="Save log" title="Save log to file">
+                <svg><use href="#icon-folder"></use></svg>
               </button>
             </div>
             <pre id="logOutput" tabindex="0"></pre>

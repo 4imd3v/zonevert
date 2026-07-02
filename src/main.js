@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, Notification, shell } = require("electron");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 const {
   validateCancelPayload,
@@ -196,6 +197,29 @@ ipcMain.handle("dialog:select-output-dir", async () => {
   }
 
   return result.filePaths[0] || "";
+});
+
+ipcMain.handle("dialog:save-file", async (_event, payload = {}) => {
+  if (!payload || typeof payload.content !== "string") {
+    return { ok: false, error: "File content is required." };
+  }
+
+  const result = await dialog.showSaveDialog({
+    title: payload.title || "Save file",
+    defaultPath: payload.defaultPath || "output.txt",
+    filters: payload.filters || [{ name: "Text", extensions: ["txt"] }]
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { ok: false, canceled: true };
+  }
+
+  try {
+    await fs.promises.writeFile(result.filePath, payload.content, "utf8");
+    return { ok: true, filePath: result.filePath };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
 });
 
 ipcMain.handle("ffmpeg:probe", async (_event, payload = {}) => {

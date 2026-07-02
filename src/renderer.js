@@ -1,6 +1,7 @@
 const api = window.zonevert;
 const conversionPlan = window.ZonevertConversionPlan;
 const queueState = window.ZonevertQueueState;
+const progressParser = window.ZonevertProgressParser;
 
 const state = {
   files: [],
@@ -41,6 +42,7 @@ const els = {
   heightInput: document.getElementById("heightInput"),
   resizeSummary: document.getElementById("resizeSummary"),
   ffmpegPathInput: document.getElementById("ffmpegPathInput"),
+  concurrencyInput: document.getElementById("concurrencyInput"),
   globalArgsInput: document.getElementById("globalArgsInput"),
   inputArgsInput: document.getElementById("inputArgsInput"),
   filterInput: document.getElementById("filterInput"),
@@ -50,6 +52,7 @@ const els = {
   commandSummary: document.getElementById("commandSummary"),
   commandPreview: document.getElementById("commandPreview"),
   copyCommandButton: document.getElementById("copyCommandButton"),
+  exportScriptButton: document.getElementById("exportScriptButton"),
   convertButton: document.getElementById("convertButton"),
   convertButtonText: document.getElementById("convertButtonText"),
   cancelButton: document.getElementById("cancelButton"),
@@ -60,6 +63,7 @@ const els = {
   logSummary: document.getElementById("logSummary"),
   logOutput: document.getElementById("logOutput"),
   clearLogButton: document.getElementById("clearLogButton"),
+  saveLogButton: document.getElementById("saveLogButton"),
   themeToggleButton: document.getElementById("themeToggleButton"),
   themeIconSun: null,
   themeIconMoon: null
@@ -184,6 +188,25 @@ function renderSummary() {
   els.summaryOutput.textContent = state.outputDir ? "Folder" : "Source";
 }
 
+function formatItemProgress(item) {
+  if (item.status !== "running" || !item.progress) {
+    return "";
+  }
+
+  const parts = [];
+  if (item.progress.frame !== null) {
+    parts.push(`frame ${item.progress.frame}`);
+  }
+  if (item.progress.fps !== null) {
+    parts.push(`${item.progress.fps} fps`);
+  }
+  if (item.progress.time) {
+    parts.push(item.progress.time);
+  }
+
+  return parts.join(" · ");
+}
+
 function renderQueue() {
   const summary = queueState.summarizeQueue(state.queue);
 
@@ -216,6 +239,7 @@ function renderQueue() {
             <div>
               <strong>${escapeHtml(item.file.name || conversionPlan.basename(item.file.path))}</strong>
               <span>${escapeHtml(item.outputPath)}</span>
+              <span class="queue-progress-text">${formatItemProgress(item)}</span>
             </div>
             <span>${queueState.statusLabel(item.status)}</span>
           </div>
@@ -236,6 +260,12 @@ function renderQueue() {
       const label = queueState.statusLabel(item.status);
       if (statusSpan && statusSpan.textContent !== label) {
         statusSpan.textContent = label;
+      }
+
+      const progressSpan = row.querySelector(".queue-progress-text");
+      const progressText = formatItemProgress(item);
+      if (progressSpan && progressSpan.textContent !== progressText) {
+        progressSpan.textContent = progressText;
       }
     });
   }
@@ -260,7 +290,8 @@ function renderCommand() {
 
 function renderControls() {
   els.convertButton.disabled = !canRunConversion();
-  els.cancelButton.disabled = !state.isConverting || !state.activeJobId || state.cancelRequested;
+  const hasRunning = state.queue.some((item) => item.status === "running");
+  els.cancelButton.disabled = !state.isConverting || !hasRunning || state.cancelRequested;
   els.convertButtonText.textContent = state.isConverting ? "Converting" : "Convert";
   els.convertButton.classList.toggle("is-busy", state.isConverting);
 
@@ -331,6 +362,7 @@ const SETTINGS_FIELDS = [
   "width",
   "height",
   "ffmpegPath",
+  "concurrency",
   "globalArgs",
   "inputArgs",
   "filter",
@@ -348,6 +380,7 @@ function collectSettings() {
     width: els.widthInput.value,
     height: els.heightInput.value,
     ffmpegPath: els.ffmpegPathInput.value,
+    concurrency: els.concurrencyInput.value,
     globalArgs: els.globalArgsInput.value,
     inputArgs: els.inputArgsInput.value,
     filter: els.filterInput.value,
@@ -402,6 +435,7 @@ function loadSettings() {
   if (typeof stored.width === "string" || typeof stored.width === "number") els.widthInput.value = stored.width;
   if (typeof stored.height === "string" || typeof stored.height === "number") els.heightInput.value = stored.height;
   if (typeof stored.ffmpegPath === "string") els.ffmpegPathInput.value = stored.ffmpegPath;
+  if (typeof stored.concurrency === "string" || typeof stored.concurrency === "number") els.concurrencyInput.value = stored.concurrency;
   if (typeof stored.globalArgs === "string") els.globalArgsInput.value = stored.globalArgs;
   if (typeof stored.inputArgs === "string") els.inputArgsInput.value = stored.inputArgs;
   if (typeof stored.filter === "string") els.filterInput.value = stored.filter;
@@ -516,6 +550,68 @@ function prepareQueue(intent) {
   state.queue = queueState.createQueue(state.files, intent, conversionPlan.planConversion);
 }
 
+function getConcurrency() {
+  const parsed = Number.parseInt(els.concurrencyInput.value, 10);
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 8) : 1;
+}
+
+async function runConversionItem(item, intent) {
+  queueState.markRunning(item);
+  appendLog(
+    `\n$ ${conversionPlan.formatCommand([intent.ffmpegPath, ...item.args], {
+      platform: api?.platform
+    })}\n`
+  );
+  renderAll();
+
+  const result = await api.convert({
+    jobId: item.id,
+    ffmpegPath: intent.ffmpegPath,
+    args: item.args
+  });
+
+  queueState.markResult(item, result, state.cancelRequested);
+
+  if (item.status === "canceled") {
+    appendLog(`Canceled: ${item.outputPath}\n`);
+  } else if (item.status === "done") {
+    appendLog(`Finished: ${item.outputPath}\n`);
+  } else {
+    appendLog(`Failed: ${result.error || "Unknown FFmpeg error"}\n`);
+  }
+
+  renderAll();
+}
+
+async function runConversionPool(items, intent, concurrency) {
+  const queue = [...items];
+  const workers = [];
+
+  async function worker() {
+    while (queue.length) {
+      if (state.cancelRequested) {
+        const skipped = queue.splice(0);
+        for (const item of skipped) {
+          queueState.markCanceled(item);
+        }
+        renderAll();
+        return;
+      }
+
+      const item = queue.shift();
+      if (!item) return;
+
+      await runConversionItem(item, intent);
+    }
+  }
+
+  for (let i = 0; i < concurrency; i++) {
+    workers.push(worker());
+  }
+
+  await Promise.all(workers);
+}
+
 async function runConversion(retry = false) {
   if (!api || state.isConverting || !state.files.length) {
     return;
@@ -534,42 +630,21 @@ async function runConversion(retry = false) {
     ? state.queue.filter((item) => item.status === "pending")
     : state.queue;
 
-  appendLog(`Starting ${runnable.length} conversion${runnable.length === 1 ? "" : "s"}.\n`);
+  const concurrency = getConcurrency();
+  appendLog(`Starting ${runnable.length} conversion${runnable.length === 1 ? "" : "s"}${concurrency > 1 ? ` (${concurrency} parallel)` : ""}.\n`);
   renderAll();
 
-  for (const item of runnable) {
-    if (state.cancelRequested) {
-      queueState.markCanceled(item);
-      continue;
+  if (concurrency > 1) {
+    await runConversionPool(runnable, intent, concurrency);
+  } else {
+    for (const item of runnable) {
+      if (state.cancelRequested) {
+        queueState.markCanceled(item);
+        continue;
+      }
+
+      await runConversionItem(item, intent);
     }
-
-    queueState.markRunning(item);
-    state.activeJobId = item.id;
-    appendLog(
-      `\n$ ${conversionPlan.formatCommand([intent.ffmpegPath, ...item.args], {
-        platform: api?.platform
-      })}\n`
-    );
-    renderAll();
-
-    const result = await api.convert({
-      jobId: item.id,
-      ffmpegPath: intent.ffmpegPath,
-      args: item.args
-    });
-
-    queueState.markResult(item, result, state.cancelRequested);
-
-    if (item.status === "canceled") {
-      appendLog(`Canceled: ${item.outputPath}\n`);
-    } else if (item.status === "done") {
-      appendLog(`Finished: ${item.outputPath}\n`);
-    } else {
-      appendLog(`Failed: ${result.error || "Unknown FFmpeg error"}\n`);
-    }
-
-    state.activeJobId = "";
-    renderAll();
   }
 
   state.isConverting = false;
@@ -586,11 +661,18 @@ async function runConversion(retry = false) {
 }
 
 async function cancelCurrentJob() {
-  if (!api || !state.activeJobId) {
+  if (!api) {
     return;
   }
 
-  await api.cancel(state.activeJobId);
+  const running = state.queue.filter((item) => item.status === "running");
+  if (!running.length) {
+    return;
+  }
+
+  for (const item of running) {
+    await api.cancel(item.id);
+  }
   state.cancelRequested = true;
   appendLog("\nCancel requested.\n");
   setLogSummary("Canceling");
@@ -639,6 +721,78 @@ async function copyCommand() {
   }
 }
 
+async function exportScript() {
+  if (!state.files.length) {
+    els.commandSummary.textContent = "Add files first";
+    return;
+  }
+
+  const intent = getConversionIntent();
+  const platform = api?.platform || "linux";
+  const isWindows = platform === "win32";
+
+  const lines = state.files.map((file) => {
+    const plan = conversionPlan.planConversion(file, intent);
+    return conversionPlan.formatCommand([intent.ffmpegPath, ...plan.args], { platform });
+  });
+
+  const shebang = isWindows ? "@echo off\r\n" : "#!/bin/sh\n";
+  const content = shebang + lines.join("\n") + "\n";
+  const ext = isWindows ? "bat" : "sh";
+  const defaultName = `zonevert-convert.${ext}`;
+
+  if (api?.saveFile) {
+    const result = await api.saveFile({
+      title: "Export conversion script",
+      defaultPath: defaultName,
+      content,
+      filters: [{ name: isWindows ? "Batch" : "Shell", extensions: [ext] }]
+    });
+
+    els.commandSummary.textContent = result.ok ? "Script saved" : (result.canceled ? "Export canceled" : "Export failed");
+  } else {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = defaultName;
+    a.click();
+    URL.revokeObjectURL(url);
+    els.commandSummary.textContent = "Script downloaded";
+  }
+}
+
+async function saveLog() {
+  const content = state.logs.join("");
+  if (!content.trim()) {
+    setLogSummary("Log is empty");
+    return;
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  const defaultName = `zonevert-log-${date}.txt`;
+
+  if (api?.saveFile) {
+    const result = await api.saveFile({
+      title: "Save log",
+      defaultPath: defaultName,
+      content,
+      filters: [{ name: "Text", extensions: ["txt"] }]
+    });
+
+    setLogSummary(result.ok ? "Log saved" : (result.canceled ? "Idle" : "Save failed"));
+  } else {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = defaultName;
+    a.click();
+    URL.revokeObjectURL(url);
+    setLogSummary("Log downloaded");
+  }
+}
+
 function applyPreset() {
   const preset = conversionPlan.PRESET_DEFAULTS[els.presetSelect.value];
 
@@ -662,6 +816,7 @@ function resetSettings() {
   els.widthInput.value = "";
   els.heightInput.value = "";
   els.ffmpegPathInput.value = "";
+  els.concurrencyInput.value = "1";
   els.globalArgsInput.value = "";
   els.inputArgsInput.value = "";
   els.filterInput.value = "";
@@ -744,11 +899,14 @@ function setupListeners() {
   els.cancelButton.addEventListener("click", safeAsync(cancelCurrentJob, "cancelCurrentJob"));
   els.retryFailedButton.addEventListener("click", safeAsync(retryFailed, "retryFailed"));
   els.copyCommandButton.addEventListener("click", safeAsync(copyCommand, "copyCommand"));
+  els.exportScriptButton.addEventListener("click", safeAsync(exportScript, "exportScript"));
   els.clearLogButton.addEventListener("click", safe(() => {
     state.logs = [];
     els.logOutput.textContent = "";
     setLogSummary("Idle");
   }, "clearLog"));
+
+  els.saveLogButton.addEventListener("click", safeAsync(saveLog, "saveLog"));
 
   els.themeToggleButton.addEventListener("click", safe(toggleTheme, "toggleTheme"));
 
@@ -760,6 +918,7 @@ function setupListeners() {
     els.widthInput,
     els.heightInput,
     els.ffmpegPathInput,
+    els.concurrencyInput,
     els.globalArgsInput,
     els.inputArgsInput,
     els.filterInput,
@@ -827,8 +986,21 @@ function setupLogStream() {
   }
 
   state.logStreamCleanup = api.onLog((data) => {
-    if (data.jobId !== state.activeJobId) {
+    const isRunning = state.queue.some((item) => item.id === data.jobId && item.status === "running");
+    if (!isRunning) {
       return;
+    }
+
+    if (data.stream === "stderr" && progressParser) {
+      const progress = progressParser.parseStderr(data.text);
+      if (progress) {
+        const item = state.queue.find((q) => q.id === data.jobId);
+        if (item) {
+          item.progress = progress;
+          renderQueue();
+        }
+        return;
+      }
     }
 
     appendLog(data.text);
