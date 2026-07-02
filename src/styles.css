@@ -482,6 +482,40 @@ svg {
     transform 180ms ease;
 }
 
+.file-row {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+}
+
+.file-thumb {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.file-thumb:not([src]),
+.file-thumb[src=""] {
+  visibility: hidden;
+}
+
+.file-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-dimensions {
+  color: var(--text-subtle);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.file-dimensions:empty {
+  display: none;
+}
+
 .file-row:hover,
 .queue-row:hover {
   border-color: var(--border-strong);
@@ -545,6 +579,22 @@ svg {
 .queue-row--skipped > span {
   background: var(--info-soft);
   color: var(--info);
+}
+
+.queue-row--draggable {
+  cursor: grab;
+}
+
+.queue-row--draggable.is-dragging {
+  opacity: 0.4;
+}
+
+.queue-row.drag-above {
+  box-shadow: 0 -2px 0 var(--primary);
+}
+
+.queue-row.drag-below {
+  box-shadow: 0 2px 0 var(--primary);
 }
 
 .queue-progress-text {

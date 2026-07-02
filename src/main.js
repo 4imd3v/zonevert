@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Notification, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
@@ -275,6 +275,61 @@ ipcMain.handle("fs:check-exists", async (_event, payload = {}) => {
   } catch (error) {
     return { ok: false, error: error.message };
   }
+});
+
+ipcMain.handle("image:thumbnail", async (_event, payload = {}) => {
+  if (!payload || typeof payload.path !== "string" || !payload.path.trim()) {
+    return { ok: false, error: "Path is required." };
+  }
+
+  try {
+    const image = nativeImage.createFromPath(payload.path);
+    if (image.isEmpty()) {
+      return { ok: false, error: "Could not read image." };
+    }
+
+    const resized = image.resize({ width: 48 });
+    return { ok: true, dataUrl: resized.toDataURL() };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+ipcMain.handle("ffprobe:run", async (_event, payload = {}) => {
+  if (!payload || typeof payload.path !== "string" || !payload.path.trim()) {
+    return { ok: false, error: "Path is required." };
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(resolveFfmpegPath(payload.ffmpegPath), [
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "stream=width,height",
+      "-of", "csv=p=0",
+      payload.path
+    ], { windowsHide: true });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+
+    child.on("error", (error) => {
+      resolve({ ok: false, error: error.message });
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        const parts = stdout.trim().split(",");
+        const width = Number.parseInt(parts[0], 10);
+        const height = Number.parseInt(parts[1], 10);
+        resolve({ ok: true, width, height });
+      } else {
+        resolve({ ok: false, error: stderr || `ffprobe exited with code ${code}` });
+      }
+    });
+  });
 });
 
 ipcMain.handle("notification:show", async (_event, payload = {}) => {

@@ -145,36 +145,31 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 
 ## Phase 5 — Nice-to-Have Features (Low priority)
 
-### F6. Save/load conversion profiles
-- [ ] Add a "Profiles" dropdown in the Output panel
-- [ ] "Save current as profile" button → store to `localStorage` with a user-chosen name
-- [ ] "Delete profile" button
-- [ ] Profile stores: format, preset, quality, overwrite, metadata, resize, naming, advanced args
-- [ ] Pre-seed with built-in profiles: "WebP Web", "JPEG Archive", "PNG Lossless"
+### F6. Save/load conversion profiles (skipped)
 
-### F7. Image thumbnails in the file list
-- [ ] In the Electron path: use `nativeImage.createFromPath(file.path).resize({ width: 48 })` in the main process
-- [ ] Expose via IPC handler: `image:thumbnail` returning a data URL
-- [ ] In the browser preview: use `URL.createObjectURL(file)` from the drop target
-- [ ] Cache thumbnails to avoid re-generation on re-renders
-- [ ] Show a 48×48 thumbnail next to the filename in each file row
+### F7. Image thumbnails in the file list ✅
+- [x] In the Electron path: use `nativeImage.createFromPath(file.path).resize({ width: 48 })` in the main process
+- [x] Expose via IPC handler: `image:thumbnail` returning a data URL
+- [x] In the browser preview: use `URL.createObjectURL(file)` from the drop target
+- [x] Cache thumbnails to avoid re-generation on re-renders
+- [x] Show a 48×48 thumbnail next to the filename in each file row
 
-### F8. ffprobe for image metadata
-- [ ] Add a new IPC handler: `ffprobe:run` that calls `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 <file>`
-- [ ] Display source dimensions in the file list: `photo.png · 1920×1080`
-- [ ] Show "1600×900 → 800×450" in the Resize panel when a resize is active
-- [ ] Cache results per file path
+### F8. ffprobe for image metadata ✅
+- [x] Add a new IPC handler: `ffprobe:run` that calls `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 <file>`
+- [x] Display source dimensions in the file list: `photo.png · 1920×1080`
+- [x] Show "1600×900 → 800×450" in the Resize panel when a resize is active
+- [x] Cache results per file path
 
-### F13. Drag-and-drop reordering of the queue
-- [ ] Allow dragging queue items to reorder them before conversion starts
-- [ ] Update `state.queue` array order on drop
-- [ ] Re-render the queue list
-- [ ] Disable reordering while conversion is running
+### F13. Drag-and-drop reordering of the queue ✅
+- [x] Allow dragging queue items to reorder them before conversion starts
+- [x] Update `state.queue` array order on drop
+- [x] Re-render the queue list
+- [x] Disable reordering while conversion is running
 
-### F14. App icon and packaging metadata
-- [ ] Create a `build/icon.png` (512×512) and `build/icon.ico` for Windows
-- [ ] Add `linux.icon` and `win.icon` to the `build` config in `package.json`
-- [ ] Add `author`, `license`, and `repository` fields to `package.json`
+### F14. App icon and packaging metadata ✅
+- [x] Create a `build/icon.png` (512×512) and `build/icon.ico` for Windows (placeholder + docs)
+- [x] Add `linux.icon` and `win.icon` to the `build` config in `package.json`
+- [x] Add `author`, `license`, and `repository` fields to `package.json`
 - [ ] Consider adding `app.dock.setIcon()` on macOS (if ever targeting macOS)
 
 ---

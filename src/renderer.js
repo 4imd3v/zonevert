@@ -14,7 +14,9 @@ const state = {
   logStreamCleanup: null,
   renderTimer: null,
   settingsLoaded: false,
-  conversionTimes: []
+  conversionTimes: [],
+  thumbnails: new Map(),
+  imageMeta: new Map()
 };
 
 const els = {
@@ -174,10 +176,12 @@ function renderFiles() {
     els.fileList.innerHTML = state.files
       .map(
         (file, index) => `
-          <div class="file-row">
-            <div>
+          <div class="file-row" data-path="${escapeHtml(file.path)}">
+            <img class="file-thumb" alt="" data-path="${escapeHtml(file.path)}" />
+            <div class="file-info">
               <strong>${escapeHtml(file.name || conversionPlan.basename(file.path))}</strong>
               <span>${escapeHtml(conversionPlan.extension(file.name || file.path).toUpperCase() || "IMAGE")}</span>
+              <span class="file-dimensions" data-path="${escapeHtml(file.path)}"></span>
             </div>
             <button class="icon-button file-remove-button" type="button" aria-label="Remove ${escapeHtml(file.name || "file")}" title="Remove" data-index="${index}">
               <svg><use href="#icon-x"></use></svg>
@@ -186,7 +190,57 @@ function renderFiles() {
         `
       )
       .join("");
+    fetchThumbnailsAndMeta();
+  } else {
+    state.files.forEach((file, index) => {
+      const row = existingRows[index];
+      if (!row) return;
+      const thumb = row.querySelector(".file-thumb");
+      const cached = state.thumbnails.get(file.path);
+      if (thumb && cached && thumb.src !== cached) {
+        thumb.src = cached;
+      }
+      const dimSpan = row.querySelector(".file-dimensions");
+      const meta = state.imageMeta.get(file.path);
+      if (dimSpan && meta && dimSpan.textContent !== meta) {
+        dimSpan.textContent = meta;
+      }
+    });
   }
+}
+
+async function fetchThumbnailsAndMeta() {
+  if (!api) return;
+
+  for (const file of state.files) {
+    if (!state.thumbnails.has(file.path) && api.getThumbnail) {
+      state.thumbnails.set(file.path, null);
+      api.getThumbnail(file.path).then((result) => {
+        if (result.ok) {
+          state.thumbnails.set(file.path, result.dataUrl);
+          const img = els.fileList.querySelector(`.file-thumb[data-path="${cssEscape(file.path)}"]`);
+          if (img) img.src = result.dataUrl;
+        }
+      });
+    }
+
+    if (!state.imageMeta.has(file.path) && api.probeImage) {
+      state.imageMeta.set(file.path, null);
+      api.probeImage(file.path, els.ffmpegPathInput.value).then((result) => {
+        if (result.ok && result.width && result.height) {
+          const text = `${result.width}×${result.height}`;
+          state.imageMeta.set(file.path, text);
+          const span = els.fileList.querySelector(`.file-dimensions[data-path="${cssEscape(file.path)}"]`);
+          if (span) span.textContent = text;
+          renderResizeSummary();
+        }
+      });
+    }
+  }
+}
+
+function cssEscape(value) {
+  return String(value).replace(/(["\\])/g, "\\$1");
 }
 
 function renderOutput() {
@@ -263,7 +317,7 @@ function renderQueue() {
     els.queueList.innerHTML = state.queue
       .map(
         (item) => `
-          <div class="queue-row queue-row--${item.status}" data-queue-index="${state.queue.indexOf(item)}">
+          <div class="queue-row queue-row--${item.status}${!state.isConverting ? " queue-row--draggable" : ""}" data-queue-index="${state.queue.indexOf(item)}"${!state.isConverting ? " draggable=\"true\"" : ""}>
             <div>
               <strong>${escapeHtml(item.file.name || conversionPlan.basename(item.file.path))}</strong>
               <span>${escapeHtml(item.outputPath)}</span>
@@ -274,6 +328,7 @@ function renderQueue() {
         `
       )
       .join("");
+    setupQueueReorder();
   } else {
     state.queue.forEach((item, index) => {
       const row = existingRows[index];
@@ -299,9 +354,78 @@ function renderQueue() {
   }
 }
 
+let dragSrcIndex = null;
+
+function setupQueueReorder() {
+  if (state.isConverting) return;
+
+  const rows = els.queueList.querySelectorAll(".queue-row--draggable");n
+  rows.forEach((row) => {
+    row.addEventListener("dragstart", safe((event) => {
+      dragSrcIndex = Number(row.dataset.queueIndex);
+      event.dataTransfer.effectAllowed = "move";
+      row.classList.add("is-dragging");
+    }, "dragstart"));
+
+    row.addEventListener("dragend", safe(() => {
+      row.classList.remove("is-dragging");
+      dragSrcIndex = null;
+    }, "dragend"));
+
+    row.addEventListener("dragover", safe((event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      const targetIndex = Number(row.dataset.queueIndex);
+      if (dragSrcIndex === null || targetIndex === dragSrcIndex) return;
+      row.classList.toggle("drag-above", targetIndex < dragSrcIndex);
+      row.classList.toggle("drag-below", targetIndex > dragSrcIndex);
+    }, "dragover"));
+
+    row.addEventListener("dragleave", safe(() => {
+      row.classList.remove("drag-above", "drag-below");
+    }, "dragleave"));
+
+    row.addEventListener("drop", safe((event) => {
+      event.preventDefault();
+      row.classList.remove("drag-above", "drag-below");
+      const targetIndex = Number(row.dataset.queueIndex);
+      if (dragSrcIndex === null || targetIndex === dragSrcIndex) return;
+      const [moved] = state.queue.splice(dragSrcIndex, 1);
+      state.queue.splice(targetIndex, 0, moved);
+      renderAll();
+    }, "drop"));
+  });
+}
+
 function renderResizeSummary() {
-  const filter = conversionPlan.buildResizeFilter(getConversionIntent().resize);
-  els.resizeSummary.textContent = filter || "Original dimensions";
+  const intent = getConversionIntent();
+  const filter = conversionPlan.buildResizeFilter(intent.resize);
+
+  if (!filter) {
+    els.resizeSummary.textContent = "Original dimensions";
+    return;
+  }
+
+  if (state.files.length && state.imageMeta.size) {
+    const firstFile = state.files[0];
+    const meta = state.imageMeta.get(firstFile.path);
+    if (meta) {
+      const [sw, sh] = meta.split("×");
+      let targetW = sw;
+      let targetH = sh;
+      if (intent.resize.mode === "stretch" || (intent.resize.mode === "fill" && intent.resize.width && intent.resize.height)) {
+        targetW = intent.resize.width || sw;
+        targetH = intent.resize.height || sh;
+      } else if (intent.resize.mode === "inside") {
+        targetW = intent.resize.width || `${sw}→`;
+        targetH = intent.resize.height || `${sh}→`;
+      }
+      els.resizeSummary.textContent = `${sw}×${sh} → ${targetW}×${targetH}`;
+      return;
+    }
+  }
+
+  els.resizeSummary.textContent = filter;
 }
 
 function renderNamingSummary() {
@@ -954,6 +1078,8 @@ function setupListeners() {
   els.clearFilesButton.addEventListener("click", safe(() => {
     state.files = [];
     state.queue = [];
+    state.thumbnails.clear();
+    state.imageMeta.clear();
     renderAll();
   }, "clearFiles"));
 
@@ -984,7 +1110,13 @@ function setupListeners() {
       return;
     }
 
-    state.files.splice(Number(button.dataset.index), 1);
+    const index = Number(button.dataset.index);
+    const removed = state.files[index];
+    if (removed) {
+      state.thumbnails.delete(removed.path);
+      state.imageMeta.delete(removed.path);
+    }
+    state.files.splice(index, 1);
     renderAll();
   }, "fileList click"));
 

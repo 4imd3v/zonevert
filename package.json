@@ -4,6 +4,12 @@
   "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
   "homepage": "https://zonevert.dev",
   "main": "src/main.js",
+  "author": "Zonevert Maintainers <maintainers@zonevert.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zonevert/zonevert.git"
+  },
   "packageManager": "pnpm@11.5.3",
   "private": true,
   "scripts": {
@@ -35,6 +41,7 @@
         "deb"
       ],
       "category": "Graphics",
+      "icon": "build/icon.png",
       "maintainer": "Zonevert Maintainers <maintainers@zonevert.dev>",
       "vendor": "Zonevert"
     },
@@ -42,7 +49,8 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "build/icon.ico"
     }
   }
 }

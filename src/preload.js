@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("zonevert", {
   showNotification: (payload) => ipcRenderer.invoke("notification:show", payload),
   saveFile: (payload) => ipcRenderer.invoke("dialog:save-file", payload),
   checkExists: (filePath) => ipcRenderer.invoke("fs:check-exists", { path: filePath }),
+  getThumbnail: (filePath) => ipcRenderer.invoke("image:thumbnail", { path: filePath }),
+  probeImage: (filePath, ffmpegPath) => ipcRenderer.invoke("ffprobe:run", { path: filePath, ffmpegPath }),
   onLog: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("ffmpeg:log", handler);
