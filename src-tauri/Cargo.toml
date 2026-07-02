@@ -1,11 +1,11 @@
 [package]
 name = "zonevert"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Windows and Linux desktop UI for batch image conversion with FFmpeg."
 authors = ["Zonevert Maintainers <maintainers@zonevert.dev>"]
 license = "MIT"
 repository = "https://github.com/4imd3v/zonevert.git"
-edition = "2021"
+edition = "2026"
 rust-version = "1.77.2"
 
 [lib]
