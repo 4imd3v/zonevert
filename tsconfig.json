@@ -1,16 +1,1 @@
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
-    "allowJs": true,
-    "checkJs": false,
-    "noEmit": true,
-    "strict": false,
-    "skipLibCheck": true,
-    "lib": ["ES2022", "DOM"],
-    "types": ["node"]
-  },
-  "include": ["src/**/*.js"],
-  "exclude": ["node_modules", "tests", "scripts", "src/renderer.js"]
-}
+{"extends": "@tsconfig/svelte/tsconfig.json", "compilerOptions": {"target": "ESNext", "module": "ESNext", "moduleResolution": "bundler", "strict": true, "allowJs": true, "checkJs": false, "verbatimModuleSyntax": true, "resolveJsonModule": true, "isolatedModules": true, "moduleDetection": "force", "skipLibCheck": true, "noEmit": true, "baseUrl": ".", "paths": {"$lib": ["./src/lib"], "$lib/*": ["./src/lib/*"]}, "lib": ["ESNext", "DOM", "DOM.Iterable"]}, "include": ["src/**/*.ts", "src/**/*.svelte"], "exclude": ["src-tauri", "node_modules"]}
