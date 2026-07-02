@@ -16,7 +16,21 @@ pnpm start
 
 `pnpm start` disables Chromium's sandbox for local development because Electron's downloaded `chrome-sandbox` helper is often not root-owned on Linux development machines. Use `pnpm run start:sandboxed` only when that helper is configured correctly.
 
+For development with auto-reload on file changes:
+
+```bash
+pnpm run dev
+```
+
 The UI can also be previewed by opening [src/index.html](src/index.html), but file dialogs and conversion only run inside Electron.
+
+## Type checking
+
+```bash
+pnpm run typecheck
+```
+
+This runs `tsc --noEmit` with `checkJs` enabled across all source files.
 
 ## Package
 

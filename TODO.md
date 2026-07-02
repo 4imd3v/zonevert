@@ -176,46 +176,39 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 
 ## Phase 6 — Code Quality & Tooling (Ongoing)
 
-### C1. Type safety via JSDoc + tsc
-- [ ] Add `// @ts-check` to the top of each `.js` file
-- [ ] Write JSDoc `@typedef` and `@param` annotations for all exported functions
-- [ ] Define shared types: `ConversionIntent`, `QueueItem`, `IpcPayload`, `ConversionResult`
-- [ ] Add a `tsconfig.json` with `allowJs: true, checkJs: true, noEmit: true`
-- [ ] Add `"typecheck": "tsc --noEmit"` to `package.json` scripts
+### C1. Type safety via JSDoc + tsc ✅
+- [x] Add `// @ts-check` to the top of each `.js` file
+- [x] Write JSDoc `@typedef` and `@param` annotations for all exported functions
+- [x] Define shared types: `ConversionIntent`, `QueueItem`, `IpcPayload`, `ConversionResult`
+- [x] Add a `tsconfig.json` with `allowJs: true, checkJs: true, noEmit: true`
+- [x] Add `"typecheck": "tsc --noEmit"` to `package.json` scripts
 
-### C2. Build step with esbuild
-- [ ] Add `esbuild` as a dev dependency
-- [ ] Convert `conversion-plan.js`, `queue-state.js`, `ipc-validation.js` from UMD to ESM `import/export`
-- [ ] Create a `scripts/build-renderer.cjs` that bundles renderer modules into a single `dist/renderer.bundle.js`
-- [ ] Update `index.html` to load the bundle instead of individual scripts
-- [ ] Keep test files importing from source (ESM with `--experimental-vm-modules` or via a small CJS shim)
+### C2. Build step with esbuild (skipped — YAGNI)
 
-### C3. Split renderer into modules
-- [ ] `src/renderer/state.js` — state object and mutation helpers
-- [ ] `src/renderer/dom.js` — element references and render functions
-- [ ] `src/renderer/events.js` — listener setup and keyboard shortcuts
-- [ ] `src/renderer/actions.js` — async operations (convert, probe, addFiles, copyCommand)
-- [ ] `src/renderer/index.js` — `init()` entry point that wires everything together
-- [ ] Extract pure functions (`dedupeFiles`, `canRunConversion`, `buildCommand`) into a testable module
+The app loads fine via UMD + `<script defer>`. Adding a mandatory build step is speculative modernization with no current benefit.
 
-### C4. Dev script with auto-reload
-- [ ] Add `electron-reload` or a Vite dev server for hot reload during development
-- [ ] Add `"dev": "electron-reload --no-sandbox ."` or equivalent to `package.json`
-- [ ] Document the dev workflow in the README
+### C3. Split renderer into modules (skipped — depends on C2)
 
-### C5. Expanded test coverage
-- [ ] Test edge cases in `conversion-plan`: empty paths, unicode filenames, very long args
-- [ ] Test `renderer.js` pure functions after extraction (C3)
-- [ ] Add integration test: mock IPC, run a full queue lifecycle (create → run → mark → summarize)
+Without a build step, split modules would need more UMD wrappers or separate `<script>` tags — more complexity, not less.
+
+### C4. Dev script with auto-reload ✅
+- [x] Add `electron-reload` for hot reload during development
+- [x] Add `"dev": "node scripts/dev.js"` to `package.json`
+- [x] Document the dev workflow in the README
+
+### C5. Expanded test coverage ✅
+- [x] Test edge cases in `conversion-plan`: empty paths, unicode filenames, very long args
+- [x] Add integration test: full queue lifecycle (create → run → mark → summarize)
+- [ ] Test `renderer.js` pure functions after extraction (C3 — skipped)
 - [ ] Add a `lint` script (ESLint with `eslint:recommended`)
 
-### C6. Accessibility audit
-- [ ] Add `role="log"` and `aria-live="polite"` to the log output `<pre>`
-- [ ] Add `role="status"` to the queue progress bar container
-- [ ] Add `aria-label` to the progress bar (`aria-valuenow`, `aria-valuemin`, `aria-valuemax`)
-- [ ] Ensure all interactive elements have visible focus indicators (already partially done via `:focus-visible`)
+### C6. Accessibility audit ✅
+- [x] Add `role="log"` and `aria-live="polite"` to the log output `<pre>`
+- [x] Add `role="status"` to the queue progress bar container
+- [x] Add `aria-label` to the progress bar (`aria-valuenow`, `aria-valuemin`, `aria-valuemax`)
+- [x] Ensure all interactive elements have visible focus indicators (already partially done via `:focus-visible`)
 - [ ] Test with a screen reader (NVDA or VoiceOver) to verify the queue and log are announced
-- [ ] Add `aria-busy="true"` to the convert button while converting
+- [x] Add `aria-busy="true"` to the convert button while converting
 
 ---
 

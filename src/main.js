@@ -1,3 +1,4 @@
+// @ts-check
 const { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");

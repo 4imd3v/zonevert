@@ -122,3 +122,26 @@ test("skip collision mode suppresses overwrite flag", () => {
   assert.equal(plan.args.includes("-y"), false);
   assert.equal(plan.args.includes("-n"), true);
 });
+
+test("handles empty path gracefully", () => {
+  const intent = createConversionIntent({ format: "webp" });
+  const plan = planConversion({ path: "", name: "" }, intent);
+  assert.equal(plan.outputPath, ".webp");
+});
+
+test("handles unicode filenames", () => {
+  const intent = createConversionIntent({ format: "png" });
+  const plan = planConversion({ path: "/images/café résumé.jpg", name: "café résumé.jpg" }, intent);
+  assert.equal(plan.outputPath, "/images/café résumé.png");
+});
+
+test("handles very long arg strings", () => {
+  const longArg = "-metadata".padEnd(8000, "x");
+  const intent = createConversionIntent({
+    format: "webp",
+    globalArgsText: longArg
+  });
+  const args = intent.advanced.globalArgs;
+  assert.equal(args.length, 1);
+  assert.equal(args[0].length, 8000);
+});

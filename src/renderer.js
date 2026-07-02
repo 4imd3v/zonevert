@@ -1,3 +1,4 @@
+// @ts-check
 const api = window.zonevert;
 const conversionPlan = window.ZonevertConversionPlan;
 const queueState = window.ZonevertQueueState;
@@ -294,6 +295,7 @@ function renderQueue() {
   const eta = state.isConverting ? formatEta(state.conversionTimes, state.queue) : "";
   els.queueSummary.textContent = eta ? `${summary.text} · ${eta}` : summary.text;
   els.queueProgressBar.style.width = `${summary.progress}%`;
+  els.queueProgressBar.parentElement.setAttribute("aria-valuenow", String(summary.progress));
 
   if (!state.queue.length) {
     if (!els.queueList.querySelector(".empty-state")) {
@@ -462,6 +464,7 @@ function renderControls() {
   els.cancelButton.disabled = !state.isConverting || !hasRunning || state.cancelRequested;
   els.convertButtonText.textContent = state.isConverting ? "Converting" : "Convert";
   els.convertButton.classList.toggle("is-busy", state.isConverting);
+  els.convertButton.setAttribute("aria-busy", String(state.isConverting));
 
   const hasFailed = state.queue.some((item) => item.status === "failed");
   els.retryFailedButton.hidden = !hasFailed || state.isConverting;

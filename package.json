@@ -16,14 +16,18 @@
     "postinstall": "node scripts/install-electron-runtime.cjs",
     "start": "electron --no-sandbox .",
     "start:sandboxed": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/conversion-plan.js && node --check src/queue-state.js && node --check src/ipc-validation.js && node --check scripts/install-electron-runtime.cjs && node --check scripts/clean-artifacts.cjs && node --test tests/*.test.cjs",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/conversion-plan.js && node --check src/queue-state.js && node --check src/ipc-validation.js && node --check src/progress-parser.js && node --check scripts/install-electron-runtime.cjs && node --check scripts/clean-artifacts.cjs && node --test tests/*.test.cjs",
+    "typecheck": "tsc --noEmit",
     "clean": "node scripts/clean-artifacts.cjs",
+    "dev": "node scripts/dev.js",
     "package:linux": "electron-builder --linux AppImage deb",
     "package:windows": "electron-builder --win nsis portable"
   },
   "devDependencies": {
     "electron": "42.3.0",
-    "electron-builder": "26.8.1"
+    "electron-builder": "26.8.1",
+    "electron-reload": "^2.0.0-alpha.1",
+    "typescript": "^5.7.0"
   },
   "build": {
     "appId": "dev.zonevert.app",

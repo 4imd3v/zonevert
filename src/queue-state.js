@@ -1,3 +1,4 @@
+// @ts-check
 (function (root, factory) {
   const api = factory();
 
