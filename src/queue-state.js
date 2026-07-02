@@ -7,7 +7,7 @@
     return;
   }
 
-  root.ZonevertQueueState = api;
+  /** @type {any} */ (root).ZonevertQueueState = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const terminalStatuses = new Set(["done", "failed", "canceled", "skipped"]);
 

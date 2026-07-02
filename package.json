@@ -1,60 +1,61 @@
 {
-  "name": "zonevert",
-  "version": "0.1.0",
-  "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
-  "homepage": "https://zonevert.dev",
-  "main": "src/main.js",
-  "author": "Zonevert Maintainers <maintainers@zonevert.dev>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/zonevert/zonevert.git"
-  },
-  "packageManager": "pnpm@11.5.3",
-  "private": true,
-  "scripts": {
-    "postinstall": "node scripts/install-electron-runtime.cjs",
-    "start": "electron --no-sandbox .",
-    "start:sandboxed": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/conversion-plan.js && node --check src/queue-state.js && node --check src/ipc-validation.js && node --check src/progress-parser.js && node --check scripts/install-electron-runtime.cjs && node --check scripts/clean-artifacts.cjs && node --test tests/*.test.cjs",
-    "typecheck": "tsc --noEmit",
-    "clean": "node scripts/clean-artifacts.cjs",
-    "dev": "node scripts/dev.js",
-    "package:linux": "electron-builder --linux AppImage deb",
-    "package:windows": "electron-builder --win nsis portable"
-  },
-  "devDependencies": {
-    "electron": "42.3.0",
-    "electron-builder": "26.8.1",
-    "electron-reload": "^2.0.0-alpha.1",
-    "typescript": "^5.7.0"
-  },
-  "build": {
-    "appId": "dev.zonevert.app",
-    "productName": "Zonevert",
-    "directories": {
-      "output": "release"
+    "name": "zonevert",
+    "version": "0.1.0",
+    "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
+    "homepage": "https://zonevert.dev",
+    "main": "src/main.js",
+    "author": "Zonevert Maintainers <maintainers@zonevert.dev>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/zonevert/zonevert.git"
     },
-    "files": [
-      "src/**/*",
-      "package.json"
-    ],
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Graphics",
-      "icon": "build/icon.png",
-      "maintainer": "Zonevert Maintainers <maintainers@zonevert.dev>",
-      "vendor": "Zonevert"
+    "packageManager": "pnpm@11.5.3",
+    "private": true,
+    "scripts": {
+        "postinstall": "node scripts/install-electron-runtime.cjs",
+        "start": "electron --no-sandbox .",
+        "start:sandboxed": "electron .",
+        "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/conversion-plan.js && node --check src/queue-state.js && node --check src/ipc-validation.js && node --check src/progress-parser.js && node --check scripts/install-electron-runtime.cjs && node --check scripts/clean-artifacts.cjs && node --test tests/*.test.cjs",
+        "typecheck": "tsc --noEmit",
+        "clean": "node scripts/clean-artifacts.cjs",
+        "dev": "node scripts/dev.js",
+        "package:linux": "electron-builder --linux AppImage deb",
+        "package:windows": "electron-builder --win nsis portable"
     },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "build/icon.ico"
+    "devDependencies": {
+        "@types/node": "^24.0.0",
+        "electron": "42.3.0",
+        "electron-builder": "26.8.1",
+        "electron-reload": "^2.0.0-alpha.1",
+        "typescript": "^5.7.0"
+    },
+    "build": {
+        "appId": "dev.zonevert.app",
+        "productName": "Zonevert",
+        "directories": {
+            "output": "release"
+        },
+        "files": [
+            "src/**/*",
+            "package.json"
+        ],
+        "linux": {
+            "target": [
+                "AppImage",
+                "deb"
+            ],
+            "category": "Graphics",
+            "icon": "build/icon.png",
+            "maintainer": "Zonevert Maintainers <maintainers@zonevert.dev>",
+            "vendor": "Zonevert"
+        },
+        "win": {
+            "target": [
+                "nsis",
+                "portable"
+            ],
+            "icon": "build/icon.ico"
+        }
     }
-  }
 }

@@ -7,7 +7,7 @@
     return;
   }
 
-  root.ZonevertConversionPlan = api;
+  /** @type {any} */ (root).ZonevertConversionPlan = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const PRESET_DEFAULTS = {
     balanced: {

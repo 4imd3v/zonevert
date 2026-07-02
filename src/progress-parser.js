@@ -7,7 +7,7 @@
     return;
   }
 
-  root.ZonevertProgressParser = api;
+  /** @type {any} */ (root).ZonevertProgressParser = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   // FFmpeg stderr progress lines look like:
   //   frame=  123 fps= 45 q=28.0 size=    1024kB time=00:00:05.12 bitrate=1638.4kbits/s

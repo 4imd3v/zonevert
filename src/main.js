@@ -217,7 +217,7 @@ ipcMain.handle("dialog:save-file", async (_event, payload = {}) => {
   }
 
   try {
-    await fs.promises.writeFile(result.filePath, payload.content, "utf8");
+    await fs.writeFile(result.filePath, payload.content, "utf8");
     return { ok: true, filePath: result.filePath };
   } catch (error) {
     return { ok: false, error: error.message };

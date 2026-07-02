@@ -7,7 +7,7 @@
     return;
   }
 
-  root.ZonevertIpcValidation = api;
+  /** @type {any} */ (root).ZonevertIpcValidation = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const maxJobIdLength = 128;
   const maxPathLength = 4096;
