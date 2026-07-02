@@ -23,7 +23,7 @@ pub fn kill_pid(pid: u32) {
     use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
     unsafe {
         let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
-        if handle != 0 {
+        if handle != std::ptr::null_mut() {
             TerminateProcess(handle, 1);
             CloseHandle(handle);
         }
