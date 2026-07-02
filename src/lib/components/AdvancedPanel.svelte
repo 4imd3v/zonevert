@@ -6,7 +6,7 @@
 <details class="panel advanced-panel">
   <summary>
     <span>Advanced FFmpeg</span>
-    <Icon name="terminal" />
+    <Icon name="chevron" />
   </summary>
 
   <label class="field">

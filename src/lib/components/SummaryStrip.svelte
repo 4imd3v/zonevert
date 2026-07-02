@@ -10,9 +10,9 @@
   let outputLabel = $derived(appState.outputDir ? "Folder" : "Source");
 </script>
 
-<section class="summary-strip" aria-label="Conversion summary">
-  <div class="summary-item"><span>Files</span><strong>{appState.files.length}</strong></div>
-  <div class="summary-item"><span>Format</span><strong>{formatLabel}</strong></div>
-  <div class="summary-item"><span>Quality</span><strong>{appState.settings.quality}</strong></div>
-  <div class="summary-item"><span>Output</span><strong>{outputLabel}</strong></div>
+<section class="meta-bar" aria-label="Conversion summary">
+  <div class="meta-item"><span>Files</span><strong>{appState.files.length}</strong></div>
+  <div class="meta-item"><span>Format</span><strong>{formatLabel}</strong></div>
+  <div class="meta-item"><span>Quality</span><strong>{appState.settings.quality}</strong></div>
+  <div class="meta-item"><span>Output</span><strong>{outputLabel}</strong></div>
 </section>

@@ -19,12 +19,14 @@
       <h2 id="logTitle">Log</h2>
       <p>{appState.logSummary}</p>
     </div>
-    <button class="icon-button" type="button" aria-label="Clear log" title="Clear log" onclick={() => appState.clearLogs()}>
-      <Icon name="x" />
-    </button>
-    <button class="icon-button" type="button" aria-label="Save log" title="Save log to file" onclick={() => appState.saveLog()}>
-      <Icon name="folder" />
-    </button>
+    <div class="button-row">
+      <button class="icon-button" type="button" aria-label="Clear log" title="Clear log" onclick={() => appState.clearLogs()}>
+        <Icon name="x" />
+      </button>
+      <button class="icon-button" type="button" aria-label="Save log" title="Save log to file" onclick={() => appState.saveLog()}>
+        <Icon name="folder" />
+      </button>
+    </div>
   </div>
   <pre bind:this={logEl} tabindex="-1" role="log" aria-live="polite">{logText}</pre>
 </section>

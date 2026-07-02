@@ -38,7 +38,7 @@
         Retry failed
       </button>
       <button class="icon-button danger-button" type="button" aria-label="Cancel current job" title="Cancel current job (Esc)" disabled={!canCancel} onclick={() => appState.cancelCurrentJob()}>
-        <Icon name="stop" />
+        <Icon name="x-circle" />
       </button>
     </div>
   </div>

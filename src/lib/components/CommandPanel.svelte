@@ -24,12 +24,14 @@
       <h2 id="commandTitle">Command</h2>
       <p>{appState.commandSummary}</p>
     </div>
-    <button class="icon-button" type="button" aria-label="Copy command" title="Copy command (Ctrl+Shift+C)" onclick={() => appState.copyCommand()}>
-      <Icon name="copy" />
-    </button>
-    <button class="icon-button" type="button" aria-label="Export as script" title="Export commands as script" onclick={() => appState.exportScript()}>
-      <Icon name="folder" />
-    </button>
+    <div class="button-row">
+      <button class="icon-button" type="button" aria-label="Copy command" title="Copy command (Ctrl+Shift+C)" onclick={() => appState.copyCommand()}>
+        <Icon name="copy" />
+      </button>
+      <button class="icon-button" type="button" aria-label="Export as script" title="Export commands as script" onclick={() => appState.exportScript()}>
+        <Icon name="folder" />
+      </button>
+    </div>
   </div>
   <pre>{command}</pre>
 </section>
