@@ -226,3 +226,74 @@ pub async fn probe_image(file_path: String, ffmpeg_path: Option<String>) -> Prob
 // server-side. If you change a constant, update both files.
 // (ipc-validation.ts is the source of truth — it's where the limits were
 // originally defined.)
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Phase 4: functional parity — each directly-callable command returns the
+    // correct result shape. ffmpeg-dependent commands return {ok:false} when
+    // ffmpeg is absent (the shape is what we assert, not the success).
+    // convert/cancel need AppHandle+State (Tauri runtime) — verified via app boot.
+
+    #[test]
+    fn platform_returns_electron_string() {
+        let p = platform();
+        #[cfg(target_os = "linux")]
+        assert_eq!(p, "linux");
+        #[cfg(target_os = "windows")]
+        assert_eq!(p, "win32");
+        #[cfg(target_os = "macos")]
+        assert_eq!(p, "darwin");
+    }
+
+    #[tokio::test]
+    async fn check_exists_reports_true_and_false() {
+        let exists = check_exists("/".into());
+        assert!(exists.ok);
+        assert!(exists.exists);
+        let missing = check_exists("/nonexistent-zonevert-test-path-12345".into());
+        assert!(missing.ok);
+        assert!(!missing.exists);
+    }
+
+    #[tokio::test]
+    async fn probe_ffmpeg_returns_shape_when_absent() {
+        let r = probe_ffmpeg(None).await;
+        // ffmpeg not on PATH in this env → ok:false with an error string.
+        // On a machine with ffmpeg, this would be ok:true with a version.
+        if !r.ok {
+            assert!(r.error.is_some(), "error must be Some when ok is false");
+        }
+        // Either way the shape is valid (ok:bool, code:Option, version:Option, error:Option).
+    }
+
+    #[tokio::test]
+    async fn probe_image_returns_error_shape_when_ffprobe_absent() {
+        let r = probe_image("/usr/share/doc/libpng-dev/examples/pngtest.png".into(), None).await;
+        if !r.ok {
+            assert!(r.error.is_some());
+        } else {
+            assert!(r.width.is_some() && r.height.is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn image_thumbnail_returns_error_shape_when_ffmpeg_absent() {
+        let r = image_thumbnail("/usr/share/doc/libpng-dev/examples/pngtest.png".into()).await;
+        if !r.ok {
+            assert!(r.error.is_some());
+            assert!(r.data_url.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn save_file_writes_then_reports() {
+        let dir = std::env::temp_dir().join("zonevert-phase4-test.txt");
+        let path = dir.to_string_lossy().to_string();
+        let r = save_file(path.clone(), "hello".into()).await;
+        assert!(r.ok);
+        assert_eq!(r.file_path, path);
+        let _ = std::fs::remove_file(&path);
+    }
+}

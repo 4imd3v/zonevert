@@ -3,7 +3,6 @@
     "version": "0.1.0",
     "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
     "homepage": "https://zonevert.dev",
-    "main": "src/main.js",
     "author": "Zonevert Maintainers <maintainers@zonevert.dev>",
     "license": "MIT",
     "repository": {
@@ -22,51 +21,20 @@
         "package:linux": "tauri build --bundles deb,appimage",
         "package:windows": "tauri build --bundles nsis,msi"
     },
+    "dependencies": {
+        "@tauri-apps/api": "^2.11.1",
+        "@tauri-apps/plugin-dialog": "~2.7.1",
+        "@tauri-apps/plugin-notification": "~2.3.3"
+    },
     "devDependencies": {
         "@sveltejs/vite-plugin-svelte": "^7.1.2",
         "@tauri-apps/cli": "^2.11.4",
         "@tsconfig/svelte": "^5.0.8",
         "@types/node": "^24.0.0",
-        "electron": "42.3.0",
-        "electron-builder": "26.8.1",
-        "electron-reload": "^2.0.0-alpha.1",
         "svelte": "^5.56.4",
         "svelte-check": "^4.7.1",
         "tsx": "^4.22.4",
         "typescript": "^5.7.0",
         "vite": "^8.1.2"
-    },
-    "build": {
-        "appId": "dev.zonevert.app",
-        "productName": "Zonevert",
-        "directories": {
-            "output": "release"
-        },
-        "files": [
-            "src/**/*",
-            "package.json"
-        ],
-        "linux": {
-            "target": [
-                "AppImage",
-                "deb"
-            ],
-            "category": "Graphics",
-            "icon": "build/icon.png",
-            "maintainer": "Zonevert Maintainers <maintainers@zonevert.dev>",
-            "vendor": "Zonevert"
-        },
-        "win": {
-            "target": [
-                "nsis",
-                "portable"
-            ],
-            "icon": "build/icon.ico"
-        }
-    },
-    "dependencies": {
-        "@tauri-apps/api": "^2.11.1",
-        "@tauri-apps/plugin-dialog": "~2.7.1",
-        "@tauri-apps/plugin-notification": "~2.3.3"
     }
 }
