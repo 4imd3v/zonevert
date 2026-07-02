@@ -208,7 +208,6 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 - [ ] Test `renderer.js` pure functions after extraction (C3)
 - [ ] Add integration test: mock IPC, run a full queue lifecycle (create → run → mark → summarize)
 - [ ] Add a `lint` script (ESLint with `eslint:recommended`)
-- [ ] Add CI via GitHub Actions: run `pnpm run check` on every push
 
 ### C6. Accessibility audit
 - [ ] Add `role="log"` and `aria-live="polite"` to the log output `<pre>`
