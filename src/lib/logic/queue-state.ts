@@ -2,6 +2,7 @@
 // types added per migrate/07-svelte-frontend.md. Algorithms unchanged.
 
 import type { ConversionIntent, ConversionPlan } from "./conversion-plan";
+import type { ProgressFrame } from "./progress-parser";
 
 export type QueueItemStatus = "pending" | "running" | "done" | "failed" | "canceled" | "skipped";
 
@@ -11,6 +12,7 @@ export interface QueueItem {
   args: string[];
   outputPath: string;
   status: QueueItemStatus;
+  progress?: ProgressFrame;
 }
 
 export interface QueueSummary {

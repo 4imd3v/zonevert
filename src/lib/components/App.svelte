@@ -1,50 +1,76 @@
 <script lang="ts">
-  // Phase 1 scaffold placeholder. Real component tree + bindings land in
-  // Phase 3 (bindings.ts) and Phase 7 (components) — see migrate/07-svelte-frontend.md.
-  let clicks = $state(0);
+  import { onMount } from "svelte";
+  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+  import { appState } from "$lib/stores/app-state.svelte";
+  import Icon from "./Icon.svelte";
+  import Topbar from "./Topbar.svelte";
+  import SummaryStrip from "./SummaryStrip.svelte";
+  import Workspace from "./Workspace.svelte";
+
+  onMount(() => {
+    // Fire-and-forget init — components read $state fields reactively as it resolves.
+    appState.init();
+
+    // Native drag-drop — delivers real file paths (HTML5 ondrop can't in WebView).
+    let unlisten: (() => void) | undefined;
+    try {
+      const win = getCurrentWebviewWindow();
+      win.onDragDropEvent((e) => {
+        if (e.payload.type !== "drop") return;
+        appState.addDroppedFiles(e.payload.paths);
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    } catch {
+      // Not in Tauri (e.g. plain Vite preview) — drag-drop unavailable, fine.
+    }
+
+    return () => {
+      unlisten?.();
+      appState.destroy();
+    };
+  });
+
+  // Keyboard shortcuts (ported from renderer.js setupKeyboardShortcuts).
+  function onKeydown(event: KeyboardEvent) {
+    const ctrl = event.ctrlKey || event.metaKey;
+    const target = event.target as HTMLElement;
+    const typing = target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA";
+
+    if (ctrl && event.shiftKey && event.key === "C") {
+      event.preventDefault();
+      appState.copyCommand();
+      return;
+    }
+    if (typing) return;
+
+    if (ctrl && event.key === "o") {
+      event.preventDefault();
+      appState.addFiles();
+    } else if (ctrl && event.key === "Enter") {
+      event.preventDefault();
+      appState.runConversion();
+    } else if (event.key === "Escape" && appState.isConverting) {
+      event.preventDefault();
+      appState.cancelCurrentJob();
+    }
+  }
 </script>
 
-<main class="app-shell">
-  <header class="topbar">
-    <div class="brand-block">
-      <div>
-        <h1>Zonevert</h1>
-        <p>Tauri + Svelte 5 + TS scaffold — Phase 1 OK</p>
-      </div>
-    </div>
-  </header>
+<svelte:window onkeydown={onKeydown} />
 
-  <section class="workspace">
-    <div class="panel">
-      <h2>Scaffold status</h2>
-      <p>Window opens ✓ · Vite HMR ✓ · svelte-check ✓</p>
-      <p>
-        Bindings, Rust backend, and components arrive in later phases. Button
-        below proves runes work:
-      </p>
-      <button class="primary-button" onclick={() => clicks++}>
-        Runes work: {clicks}
-      </button>
-    </div>
-  </section>
+<Icon name="image" />
+
+<main class="app-shell">
+  <Topbar />
+  <SummaryStrip />
+  <Workspace />
 </main>
 
 <style>
   .app-shell {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 24px;
-  }
-  .workspace {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .primary-button {
-    padding: 8px 16px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
+    min-height: 100vh;
   }
 </style>

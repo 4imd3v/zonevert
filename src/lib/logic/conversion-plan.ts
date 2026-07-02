@@ -57,7 +57,7 @@ interface CreateIntentOptions {
   outputArgsText?: string;
 }
 
-const PRESET_DEFAULTS: Record<Preset, { quality: number }> = {
+export const PRESET_DEFAULTS: Record<Preset, { quality: number }> = {
   balanced: { quality: 82 },
   quality: { quality: 94 },
   small: { quality: 64 },
