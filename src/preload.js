@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("zonevert", {
   probeFFmpeg: (ffmpegPath) => ipcRenderer.invoke("ffmpeg:probe", { ffmpegPath }),
   convert: (payload) => ipcRenderer.invoke("ffmpeg:convert", payload),
   cancel: (jobId) => ipcRenderer.invoke("ffmpeg:cancel", { jobId }),
+  showNotification: (payload) => ipcRenderer.invoke("notification:show", payload),
   onLog: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on("ffmpeg:log", handler);

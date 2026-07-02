@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Notification, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const {
@@ -22,6 +22,15 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     }
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  win.webContents.on("will-navigate", (event) => {
+    event.preventDefault();
   });
 
   win.loadFile(path.join(__dirname, "index.html"));
@@ -124,6 +133,13 @@ app.whenReady().then(() => {
   });
 });
 
+app.on("before-quit", () => {
+  for (const child of runningProcesses.values()) {
+    child.kill("SIGTERM");
+  }
+  runningProcesses.clear();
+});
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
@@ -222,4 +238,21 @@ ipcMain.handle("ffmpeg:cancel", async (_event, payload = {}) => {
   return {
     ok: true
   };
+});
+
+ipcMain.handle("notification:show", async (_event, payload = {}) => {
+  if (!payload || typeof payload.title !== "string") {
+    return { ok: false, error: "Notification title is required." };
+  }
+
+  if (!Notification.isSupported()) {
+    return { ok: false, error: "Notifications not supported on this platform." };
+  }
+
+  const notification = new Notification({
+    title: payload.title,
+    body: typeof payload.body === "string" ? payload.body : ""
+  });
+  notification.show();
+  return { ok: true };
 });

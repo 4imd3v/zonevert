@@ -5,78 +5,78 @@
 
 ---
 
-## Phase 1 — Security & Reliability (Critical)
+## Phase 1 — Security & Reliability (Critical) ✅
 
 These are small, high-impact fixes that close real attack surfaces and prevent resource leaks.
 
-### S1. Content Security Policy
-- [ ] Add a CSP `<meta>` tag to `src/index.html` restricting `default-src`, `script-src`, `style-src`, and `img-src` to `'self'`
-- [ ] Allow `img-src 'self' data: blob:` if thumbnails (F7) are implemented later
-- [ ] Verify the app still loads correctly under the new CSP (no inline scripts, no external resources)
+### S1. Content Security Policy ✅
+- [x] Add a CSP `<meta>` tag to `src/index.html` restricting `default-src`, `script-src`, `style-src`, and `img-src` to `'self'`
+- [x] Allow `img-src 'self' data: blob:` if thumbnails (F7) are implemented later
+- [x] Verify the app still loads correctly under the new CSP (no inline scripts, no external resources)
 
-### S2. Navigation & new-window hardening
-- [ ] In `createWindow()`, add `win.webContents.setWindowOpenHandler()` to deny or redirect to `shell.openExternal`
-- [ ] Add a `will-navigate` listener that prevents navigation away from the loaded `file://` URL
-- [ ] Require `const { shell } = require("electron")` in `main.js`
+### S2. Navigation & new-window hardening ✅
+- [x] In `createWindow()`, add `win.webContents.setWindowOpenHandler()` to deny or redirect to `shell.openExternal`
+- [x] Add a `will-navigate` listener that prevents navigation away from the loaded `file://` URL
+- [x] Require `const { shell } = require("electron")` in `main.js`
 
-### R1. Kill child processes on app quit
-- [ ] Add an `app.on("before-quit", ...)` handler that iterates `runningProcesses` and sends `SIGTERM` to each child
-- [ ] Clear the `runningProcesses` map after killing
+### R1. Kill child processes on app quit ✅
+- [x] Add an `app.on("before-quit", ...)` handler that iterates `runningProcesses` and sends `SIGTERM` to each child
+- [x] Clear the `runningProcesses` map after killing
 - [ ] Test: start a large batch, close the window, confirm no orphan `ffmpeg` processes remain (`pgrep ffmpeg`)
 
-### R2. onLog listener cleanup
-- [ ] In `renderer.js`, store the cleanup function returned by `api.onLog()` so it can be called if the renderer ever re-initializes
-- [ ] Consider making `setupLogStream()` idempotent (guard against double-registration)
+### R2. onLog listener cleanup ✅
+- [x] In `renderer.js`, store the cleanup function returned by `api.onLog()` so it can be called if the renderer ever re-initializes
+- [x] Consider making `setupLogStream()` idempotent (guard against double-registration)
 
-### R3. Renderer error boundary
-- [ ] Wrap `init()` and all event handler bodies in `try/catch` blocks
-- [ ] On caught error, show a non-blocking message in the log panel rather than letting the UI go blank
-- [ ] Log the error stack to the console for debugging
+### R3. Renderer error boundary ✅
+- [x] Wrap `init()` and all event handler bodies in `try/catch` blocks
+- [x] On caught error, show a non-blocking message in the log panel rather than letting the UI go blank
+- [x] Log the error stack to the console for debugging
 
 ---
 
-## Phase 2 — Performance & UX Foundations (High)
+## Phase 2 — Performance & UX Foundations (High) ✅
 
-### P1. Debounce `renderAll()` on input events
-- [ ] Add a `scheduleRender()` function with an 80ms debounce timer
-- [ ] Replace `renderAll` with `scheduleRender` in the `input` event listeners (format, quality, resize, ffmpeg args, etc.)
-- [ ] Keep instant `renderAll()` for user actions (add files, clear, convert, cancel, preset change)
+### P1. Debounce `renderAll()` on input events ✅
+- [x] Add a `scheduleRender()` function with an 80ms debounce timer
+- [x] Replace `renderAll` with `scheduleRender` in the `input` event listeners (format, quality, resize, ffmpeg args, etc.)
+- [x] Keep instant `renderAll()` for user actions (add files, clear, convert, cancel, preset change)
 - [ ] Test: typing in a text field should feel smooth even with 100+ files loaded
 
-### P2. Targeted DOM updates instead of full `innerHTML` rewrites
-- [ ] `renderFiles()`: diff or rebuild only the changed rows instead of replacing the entire list
-- [ ] `renderQueue()`: update individual queue item status classes/text without rebuilding the whole list
-- [ ] Preserve scroll position in both lists across re-renders
-- [ ] Preserve focus state (e.g., if a field is focused when a render fires)
+### P2. Targeted DOM updates instead of full `innerHTML` rewrites ✅
+- [x] `renderFiles()`: diff or rebuild only the changed rows instead of replacing the entire list
+- [x] `renderQueue()`: update individual queue item status classes/text without rebuilding the whole list
+- [x] Preserve scroll position in both lists across re-renders
+- [x] Preserve focus state (e.g., if a field is focused when a render fires)
 
-### F1. Settings persistence
-- [ ] Define a settings object: `format`, `preset`, `quality`, `overwrite`, `keepMetadata`, `resizeMode`, `width`, `height`, `ffmpegPath`, `globalArgs`, `inputArgs`, `filterGraph`, `outputArgs`, `outputDir`
-- [ ] Save to `localStorage` on every settings change (debounced)
-- [ ] Restore from `localStorage` on `init()` before `renderAll()`
-- [ ] Add a "Reset to defaults" button in the Advanced section
-- [ ] Handle schema migrations: if a stored key is missing or invalid, fall back to the default
+### F1. Settings persistence ✅
+- [x] Define a settings object: `format`, `preset`, `quality`, `overwrite`, `keepMetadata`, `resizeMode`, `width`, `height`, `ffmpegPath`, `globalArgs`, `inputArgs`, `filterGraph`, `outputArgs`, `outputDir`
+- [x] Save to `localStorage` on every settings change (debounced)
+- [x] Restore from `localStorage` on `init()` before `renderAll()`
+- [x] Add a "Reset to defaults" button in the Advanced section
+- [x] Handle schema migrations: if a stored key is missing or invalid, fall back to the default
 
 ---
 
 ## Phase 3 — Output Handling & Batch Quality (High)
 
-### R4. Output filename collision detection
-- [ ] When `createQueue()` builds the queue, collect all output paths and detect duplicates
-- [ ] For collisions, append a numeric suffix: `photo-1.webp`, `photo-2.webp`
-- [ ] Add a unit test in `tests/conversion-plan.test.cjs` covering multi-file stem collision
-- [ ] Show the resolved output path in the queue list UI
+### R4. Output filename collision detection ✅
+- [x] When `createQueue()` builds the queue, collect all output paths and detect duplicates
+- [x] For collisions, append a numeric suffix: `photo-1.webp`, `photo-2.webp`
+- [x] Add a unit test in `tests/queue-state.test.cjs` covering multi-file stem collision
+- [x] Show the resolved output path in the queue list UI
 
-### F12. Collision strategy options
+### F12. Collision strategy options (partial)
 - [ ] Add a setting: "When output exists" with three modes: `overwrite` (current `-y`), `skip` (check existence, skip if file present), `rename` (auto-append number)
 - [ ] For `skip` mode, use Node `fs.existsSync` in the main process before launching FFmpeg
 - [ ] Expose via a new IPC handler: `ffmpeg:check-exists`
-- [ ] Update `queue-state.js` to support a `skipped` status
+- [x] Update `queue-state.js` to support a `skipped` status
 
-### F9. Retry failed conversions
-- [ ] Add a "Retry failed" button next to the Convert button
-- [ ] Button is visible only when `queue` has items with `status === "failed"`
-- [ ] On click, reset all failed items to `pending` and re-run the conversion loop
-- [ ] Add `resetFailed(queue)` to `queue-state.js` with a unit test
+### F9. Retry failed conversions ✅
+- [x] Add a "Retry failed" button next to the Convert button
+- [x] Button is visible only when `queue` has items with `status === "failed"`
+- [x] On click, reset all failed items to `pending` and re-run the conversion loop
+- [x] Add `resetFailed(queue)` to `queue-state.js` with a unit test
 
 ### F10. Output filename customization
 - [ ] Add a "Naming" section with options:
@@ -89,29 +89,29 @@ These are small, high-impact fixes that close real attack surfaces and prevent r
 
 ---
 
-## Phase 4 — Features & Polish (Medium)
+## Phase 4 — Features & Polish (Medium) ✅
 
-### F2. Dark mode
-- [ ] Define a dark palette in `styles.css` under `:root[data-theme="dark"]`
-- [ ] Add a theme toggle button in the topbar (sun/moon icon)
-- [ ] Persist preference in `localStorage` (ties into F1)
-- [ ] Respect `prefers-color-scheme: dark` on first launch if no stored preference
-- [ ] Update `color-scheme` CSS property to match active theme
+### F2. Dark mode ✅
+- [x] Define a dark palette in `styles.css` under `:root[data-theme="dark"]`
+- [x] Add a theme toggle button in the topbar (sun/moon icon)
+- [x] Persist preference in `localStorage` (ties into F1)
+- [x] Respect `prefers-color-scheme: dark` on first launch if no stored preference
+- [x] Update `color-scheme` CSS property to match active theme
 
-### F3. System notification on completion
-- [ ] In `main.js`, add `ipcMain.handle("notification:show", ...)` using Electron `Notification`
-- [ ] In `preload.js`, expose `showNotification({ title, body })`
-- [ ] In `renderer.js`, call it when the queue finishes (both success and partial-failure cases)
-- [ ] Include a summary: "3 done, 1 failed" in the body
+### F3. System notification on completion ✅
+- [x] In `main.js`, add `ipcMain.handle("notification:show", ...)` using Electron `Notification`
+- [x] In `preload.js`, expose `showNotification({ title, body })`
+- [x] In `renderer.js`, call it when the queue finishes (both success and partial-failure cases)
+- [x] Include a summary: "3 done, 1 failed" in the body
 
-### F4. Keyboard shortcuts
-- [ ] `Ctrl+O` → Add files
-- [ ] `Ctrl+Enter` → Convert
-- [ ] `Escape` → Cancel current job
-- [ ] `Ctrl+Shift+C` → Copy command
-- [ ] `Ctrl+L` → Focus log panel
-- [ ] Add `accesskey` attributes to key buttons as a lightweight alternative
-- [ ] Show shortcut hints in button tooltips
+### F4. Keyboard shortcuts ✅
+- [x] `Ctrl+O` → Add files
+- [x] `Ctrl+Enter` → Convert
+- [x] `Escape` → Cancel current job
+- [x] `Ctrl+Shift+C` → Copy command
+- [x] `Ctrl+L` → Focus log panel
+- [x] Add `accesskey` attributes to key buttons as a lightweight alternative
+- [x] Show shortcut hints in button tooltips
 
 ### F5. Export commands as shell/batch script
 - [ ] Add an "Export Script" button in the Command panel

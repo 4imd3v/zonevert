@@ -8,10 +8,10 @@
 
   root.ZonevertQueueState = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const terminalStatuses = new Set(["done", "failed", "canceled"]);
+  const terminalStatuses = new Set(["done", "failed", "canceled", "skipped"]);
 
   function createQueue(files, intent, planner, createId = defaultCreateId) {
-    return files.map((file) => {
+    const queue = files.map((file) => {
       const plan = planner(file, intent);
 
       return {
@@ -22,6 +22,35 @@
         status: "pending"
       };
     });
+
+    resolveCollisions(queue);
+    return queue;
+  }
+
+  function resolveCollisions(queue) {
+    const seen = new Map();
+
+    for (const item of queue) {
+      const original = item.outputPath;
+      if (!seen.has(original)) {
+        seen.set(original, 1);
+        continue;
+      }
+
+      const count = seen.get(original);
+      seen.set(original, count + 1);
+
+      const dotIndex = original.lastIndexOf(".");
+      const ext = dotIndex > 0 ? original.slice(dotIndex) : "";
+      const base = dotIndex > 0 ? original.slice(0, dotIndex) : original;
+      const newPath = `${base}-${count}${ext}`;
+
+      item.outputPath = newPath;
+
+      if (item.args && item.args.length) {
+        item.args[item.args.length - 1] = newPath;
+      }
+    }
   }
 
   function summarizeQueue(queue) {
@@ -31,6 +60,7 @@
       done: 0,
       failed: 0,
       canceled: 0,
+      skipped: 0,
       total: queue.length,
       progress: 0,
       text: "0 pending"
@@ -42,7 +72,7 @@
       }
     }
 
-    const finished = summary.done + summary.failed + summary.canceled;
+    const finished = summary.done + summary.failed + summary.canceled + summary.skipped;
     summary.progress = summary.total ? Math.round((finished / summary.total) * 100) : 0;
 
     if (summary.total) {
@@ -55,6 +85,10 @@
 
       if (summary.canceled) {
         parts.push(`${summary.canceled} canceled`);
+      }
+
+      if (summary.skipped) {
+        parts.push(`${summary.skipped} skipped`);
       }
 
       summary.text = parts.join(" · ");
@@ -107,7 +141,27 @@
       return "Canceled";
     }
 
+    if (status === "skipped") {
+      return "Skipped";
+    }
+
     return "Pending";
+  }
+
+  function markSkipped(item) {
+    item.status = "skipped";
+    return item;
+  }
+
+  function resetFailed(queue) {
+    const reset = [];
+    for (const item of queue) {
+      if (item.status === "failed") {
+        item.status = "pending";
+        reset.push(item);
+      }
+    }
+    return reset;
   }
 
   function defaultCreateId() {
@@ -124,6 +178,9 @@
     markCanceled,
     markResult,
     markRunning,
+    markSkipped,
+    resetFailed,
+    resolveCollisions,
     statusLabel,
     summarizeQueue
   };

@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self';" />
     <title>Zonevert</title>
     <link rel="stylesheet" href="./styles.css" />
     <script defer src="./conversion-plan.js"></script>
@@ -47,6 +48,13 @@
       <symbol id="icon-x" viewBox="0 0 24 24">
         <path d="M6 6l12 12M18 6 6 18" />
       </symbol>
+      <symbol id="icon-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      </symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </symbol>
       <symbol id="icon-image" viewBox="0 0 24 24">
         <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
         <path d="m3 16 5-5 4 4 2-2 7 7" />
@@ -69,6 +77,10 @@
           <span class="status-dot status-dot--idle"></span>
           <span id="ffmpegStatusText">Checking FFmpeg</span>
         </div>
+        <button class="icon-button" id="themeToggleButton" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <svg class="icon-sun"><use href="#icon-sun"></use></svg>
+          <svg class="icon-moon" hidden><use href="#icon-moon"></use></svg>
+        </button>
       </header>
 
       <section class="summary-strip" aria-label="Conversion summary">
@@ -99,7 +111,7 @@
                 <p id="sourceCount">No files selected</p>
               </div>
               <div class="button-row">
-                <button class="icon-button" id="addFilesButton" type="button" aria-label="Add images" title="Add images">
+                <button class="icon-button" id="addFilesButton" type="button" aria-label="Add images" title="Add images (Ctrl+O)">
                   <svg><use href="#icon-plus"></use></svg>
                 </button>
                 <button class="icon-button" id="clearFilesButton" type="button" aria-label="Clear images" title="Clear images">
@@ -239,10 +251,16 @@
               <input id="outputArgsInput" type="text" spellcheck="false" />
             </label>
 
-            <button class="secondary-button" id="probeButton" type="button">
-              <svg><use href="#icon-check"></use></svg>
-              Check FFmpeg
-            </button>
+            <div class="advanced-button-row">
+              <button class="secondary-button" id="probeButton" type="button">
+                <svg><use href="#icon-check"></use></svg>
+                Check FFmpeg
+              </button>
+              <button class="secondary-button" id="resetSettingsButton" type="button">
+                <svg><use href="#icon-trash"></use></svg>
+                Reset to defaults
+              </button>
+            </div>
           </details>
         </div>
 
@@ -253,7 +271,7 @@
                 <h2 id="commandTitle">Command</h2>
                 <p id="commandSummary">Waiting for source and output</p>
               </div>
-              <button class="icon-button" id="copyCommandButton" type="button" aria-label="Copy command" title="Copy command">
+              <button class="icon-button" id="copyCommandButton" type="button" aria-label="Copy command" title="Copy command (Ctrl+Shift+C)">
                 <svg><use href="#icon-copy"></use></svg>
               </button>
             </div>
@@ -267,11 +285,15 @@
                 <p id="queueSummary">0 pending</p>
               </div>
               <div class="button-row">
-                <button class="primary-button" id="convertButton" type="button">
+                <button class="primary-button" id="convertButton" type="button" title="Convert (Ctrl+Enter)">
                   <svg><use href="#icon-play"></use></svg>
                   <span id="convertButtonText">Convert</span>
                 </button>
-                <button class="icon-button danger-button" id="cancelButton" type="button" aria-label="Cancel current job" title="Cancel current job" disabled>
+                <button class="secondary-button" id="retryFailedButton" type="button" aria-label="Retry failed conversions" title="Retry failed" hidden>
+                  <svg><use href="#icon-play"></use></svg>
+                  Retry failed
+                </button>
+                <button class="icon-button danger-button" id="cancelButton" type="button" aria-label="Cancel current job" title="Cancel current job (Esc)" disabled>
                   <svg><use href="#icon-stop"></use></svg>
                 </button>
               </div>
@@ -294,7 +316,7 @@
                 <svg><use href="#icon-x"></use></svg>
               </button>
             </div>
-            <pre id="logOutput"></pre>
+            <pre id="logOutput" tabindex="0"></pre>
           </section>
         </div>
       </section>
