@@ -67,7 +67,7 @@ pub async fn run(
     registry: &ProcessRegistry,
     req: ConvertRequest,
 ) -> ConvertResult {
-    let mut cmd = Command::new(resolve_explicit_or(&req.ffmpeg_path, "ffmpeg"));
+    let mut cmd = Command::new(resolve_ffmpeg(Some(app), &req.ffmpeg_path));
     cmd.args(&req.args);
     no_window(&mut cmd);
     cmd.stdout(Stdio::piped())
@@ -174,8 +174,8 @@ pub async fn run(
 }
 
 /// `ffprobe` width/height probe (replaces ffprobe:run).
-pub async fn probe_image(path: &str, ffprobe: &str) -> ProbeImageResult {
-    let mut cmd = Command::new(ffprobe);
+pub async fn probe_image(app: Option<&AppHandle>, path: &str, ffmpeg_path: &Option<String>) -> ProbeImageResult {
+    let mut cmd = Command::new(resolve_ffmpeg(app, ffmpeg_path));
     cmd.args([
         "-v",
         "error",
@@ -242,8 +242,8 @@ pub async fn probe_image(path: &str, ffprobe: &str) -> ProbeImageResult {
 
 /// Thumbnail via ffmpeg (replaces nativeImage.createFromPath().resize().toDataURL()).
 /// `ffmpeg -i <input> -vf scale=<w>:-1 -f image2pipe -vframes 1 -vcodec png pipe:1`
-pub async fn thumbnail(path: &str, width: u32) -> ThumbnailResult {
-    let mut cmd = Command::new(resolve_env_or("ffmpeg"));
+pub async fn thumbnail(app: Option<&AppHandle>, path: &str, width: u32) -> ThumbnailResult {
+    let mut cmd = Command::new(resolve_ffmpeg(app, &None));
     cmd.args([
         "-i",
         path,
@@ -291,15 +291,34 @@ pub async fn thumbnail(path: &str, width: u32) -> ThumbnailResult {
 
 // ---- helpers ----
 
-pub fn resolve_explicit_or(explicit: &Option<String>, fallback: &str) -> String {
-    match explicit.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        Some(p) => p.to_owned(),
-        None => std::env::var("FFMPEG_PATH").unwrap_or_else(|_| fallback.into()),
-    }
-}
+use tauri::{Manager, path::BaseDirectory};
 
-fn resolve_env_or(fallback: &str) -> String {
-    std::env::var("FFMPEG_PATH").unwrap_or_else(|_| fallback.into())
+/// Resolve the ffmpeg executable, in priority order:
+///   1. explicit user path (if non-empty)
+///   2. FFMPEG_PATH env var
+///   3. bundled sidecar (binaries/ffmpeg, on PATH at runtime)
+///   4. bare "ffmpeg" (system PATH)
+/// The bundled sidecar is preferred over a system ffmpeg so the app works
+/// with zero user setup.
+pub fn resolve_ffmpeg(app: Option<&AppHandle>, explicit: &Option<String>) -> String {
+    if let Some(p) = explicit.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        return p.to_owned();
+    }
+    if let Ok(env) = std::env::var("FFMPEG_PATH") {
+        if !env.trim().is_empty() {
+            return env.trim().to_owned();
+        }
+    }
+    // ponytail: externalBin sidecar is placed next to the binary on PATH at
+    // runtime; resolve() also works when run from target/debug during dev.
+    if let Some(app) = app {
+        if let Ok(sidecar) = app.path().resolve("ffmpeg", BaseDirectory::Resource) {
+            if sidecar.exists() {
+                return sidecar.to_string_lossy().into_owned();
+            }
+        }
+    }
+    "ffmpeg".into()
 }
 
 /// ExitStatus::signal() is unix-only; guard so this compiles on Windows.

@@ -16,10 +16,13 @@
         "typecheck": "svelte-check --tsconfig ./tsconfig.json",
         "clean": "node scripts/clean-artifacts.cjs",
         "dev": "vite",
+        "predev": "node scripts/fetch-ffmpeg.mjs",
         "build": "vite build",
         "tauri": "tauri",
         "package:linux": "tauri build --bundles deb,appimage",
-        "package:windows": "tauri build --bundles nsis,msi"
+        "prepackage:linux": "node scripts/fetch-ffmpeg.mjs",
+        "package:windows": "tauri build --bundles nsis,msi",
+        "prepackage:windows": "node scripts/fetch-ffmpeg.mjs"
     },
     "dependencies": {
         "@tauri-apps/api": "^2.11.1",

@@ -105,8 +105,8 @@ pub fn platform() -> &'static str {
 }
 
 #[tauri::command]
-pub async fn probe_ffmpeg(ffmpeg_path: Option<String>) -> ProbeResult {
-    ffmpeg::probe(&ffmpeg::resolve_explicit_or(&ffmpeg_path, "ffmpeg")).await
+pub async fn probe_ffmpeg(app: tauri::AppHandle, ffmpeg_path: Option<String>) -> ProbeResult {
+    ffmpeg::probe(&ffmpeg::resolve_ffmpeg(Some(&app), &ffmpeg_path)).await
 }
 
 #[tauri::command]
@@ -199,13 +199,13 @@ pub async fn save_file(file_path: String, content: String) -> SaveResult {
 }
 
 #[tauri::command]
-pub async fn image_thumbnail(file_path: String) -> ThumbnailResult {
-    ffmpeg::thumbnail(&file_path, 48).await
+pub async fn image_thumbnail(app: tauri::AppHandle, file_path: String) -> ThumbnailResult {
+    ffmpeg::thumbnail(Some(&app), &file_path, 48).await
 }
 
 #[tauri::command]
-pub async fn probe_image(file_path: String, ffmpeg_path: Option<String>) -> ProbeImageResult {
-    ffmpeg::probe_image(&file_path, &ffmpeg::resolve_explicit_or(&ffmpeg_path, "ffmpeg")).await
+pub async fn probe_image(app: tauri::AppHandle, file_path: String, ffmpeg_path: Option<String>) -> ProbeImageResult {
+    ffmpeg::probe_image(Some(&app), &file_path, &ffmpeg_path).await
 }
 
 #[cfg(test)]
@@ -228,6 +228,8 @@ mod tests {
         assert_eq!(p, "darwin");
     }
 
+    use ffmpeg::{probe, probe_image, thumbnail};
+
     #[tokio::test]
     async fn check_exists_reports_true_and_false() {
         let exists = check_exists("/".into());
@@ -240,7 +242,7 @@ mod tests {
 
     #[tokio::test]
     async fn probe_ffmpeg_returns_shape_when_absent() {
-        let r = probe_ffmpeg(None).await;
+        let r = probe("ffmpeg").await;
         // ffmpeg not on PATH in this env → ok:false with an error string.
         // On a machine with ffmpeg, this would be ok:true with a version.
         if !r.ok {
@@ -251,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn probe_image_returns_error_shape_when_ffprobe_absent() {
-        let r = probe_image("/usr/share/doc/libpng-dev/examples/pngtest.png".into(), None).await;
+        let r = probe_image(None, "/usr/share/doc/libpng-dev/examples/pngtest.png", &None).await;
         if !r.ok {
             assert!(r.error.is_some());
         } else {
@@ -261,7 +263,7 @@ mod tests {
 
     #[tokio::test]
     async fn image_thumbnail_returns_error_shape_when_ffmpeg_absent() {
-        let r = image_thumbnail("/usr/share/doc/libpng-dev/examples/pngtest.png".into()).await;
+        let r = thumbnail(None, "/usr/share/doc/libpng-dev/examples/pngtest.png", 48).await;
         if !r.ok {
             assert!(r.error.is_some());
             assert!(r.data_url.is_none());

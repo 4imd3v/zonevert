@@ -43,6 +43,28 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
+            - name: Fetch bundled ffmpeg sidecar
+              shell: bash
+              run: |
+                set -euo pipefail
+                mkdir -p src-tauri/binaries
+                if [ "${{ matrix.target }}" = "linux" ]; then
+                  # johnvansickle.com static build (glibc)
+                  curl -fsSL -o ffmpeg.tar.xz \
+                    https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+                  tar -xf ffmpeg.tar.xz
+                  cp ffmpeg-*-amd64-static/ffmpeg src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+                else
+                  # BtbN Windows build (LGPL shared)
+                  curl -fsSL -o ffmpeg.zip \
+                    https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip
+                  (command -v unzip >/dev/null && unzip -o ffmpeg.zip) || \
+                    (powershell -Command "Expand-Archive ffmpeg.zip -DestinationPath .")
+                  cp ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe \
+                    src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+                fi
+                ls -la src-tauri/binaries
+
             - name: Check
               run: pnpm run check
 
