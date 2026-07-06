@@ -1,6 +1,6 @@
 {
     "name": "zonevert",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "A Windows and Linux desktop UI for batch image conversion with FFmpeg.",
     "homepage": "https://zonevert.dev",
     "author": "Zonevert Maintainers <maintainers@zonevert.dev>",
