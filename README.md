@@ -123,3 +123,21 @@ The main controls cover common image conversion needs: format, quality,
 overwrite behavior, metadata, resize mode, and batch queue execution. The
 Advanced FFmpeg section exposes global, input, filter graph, and output
 arguments so FFmpeg options can be used without changing the UI code.
+
+## Acknowledgements
+
+Zonevert bundles [FFmpeg](https://ffmpeg.org/) as a sidecar. FFmpeg is
+licensed under the GNU LGPL/GPL — see its source for details. The bundled
+binaries are not built by this project; they are downloaded from third-party
+static builds:
+
+- **Linux & macOS**: static builds by John VanSickle
+  ([johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/)),
+  licensed under the GNU GPL.
+- **Windows**: builds from BtbN's
+  [FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (GPL shared),
+  licensed under the GNU GPL.
+
+These binaries are fetched and SHA-256 verified by `scripts/fetch-ffmpeg.mjs`
+(pinned versions, see the FFmpeg section above). If you redistribute Zonevert,
+ensure compliance with FFmpeg's license terms for the bundled binaries.
