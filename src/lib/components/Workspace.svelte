@@ -10,7 +10,8 @@
 </script>
 
 <section class="workspace" aria-label="Conversion workspace">
-  <div class="setup-column">
+  <div class="setup-column pane">
+    <div class="pane-title">Setup</div>
     <SourcePanel />
     <OutputPanel />
     <NamingPanel />
@@ -18,7 +19,8 @@
     <AdvancedPanel />
   </div>
 
-  <div class="run-column">
+  <div class="run-column pane">
+    <div class="pane-title">Run</div>
     <CommandPanel />
     <QueuePanel />
     <LogPanel />

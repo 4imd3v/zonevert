@@ -3,8 +3,8 @@
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { appState } from "$lib/stores/app-state.svelte";
   import Topbar from "./Topbar.svelte";
-  import SummaryStrip from "./SummaryStrip.svelte";
   import Workspace from "./Workspace.svelte";
+  import StatusBar from "./StatusBar.svelte";
 
   onMount(() => {
     // Fire-and-forget init — components read $state fields reactively as it resolves.
@@ -60,14 +60,7 @@
 
 <main class="app-shell">
   <Topbar />
-  <SummaryStrip />
   <Workspace />
+  <StatusBar />
 </main>
 
-<style>
-  .app-shell {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-  }
-</style>
