@@ -141,3 +141,19 @@ static builds:
 These binaries are fetched and SHA-256 verified by `scripts/fetch-ffmpeg.mjs`
 (pinned versions, see the FFmpeg section above). If you redistribute Zonevert,
 ensure compliance with FFmpeg's license terms for the bundled binaries.
+
+### FFmpeg source offer
+
+Per the FFmpeg license, the corresponding source for the bundled binaries is
+available here:
+
+- FFmpeg (all platforms): <https://ffmpeg.org/download.html> — source for the
+  6.0.1 release used by the Linux/macOS builds, and the current release used by
+  the Windows build.
+- Linux & macOS static builds: <https://johnvansickle.com/ffmpeg/> (build
+  configuration and source references for the 6.0.1 static builds).
+- Windows builds: <https://github.com/BtbN/FFmpeg-Builds> (build scripts and
+  source for the `gpl-shared` artifacts).
+
+Zonevert itself is released under the MIT License; the bundled FFmpeg binaries
+are covered by the GNU GPL/LGPL as noted above.
