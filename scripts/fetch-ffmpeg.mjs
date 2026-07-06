@@ -34,10 +34,10 @@ if (process.platform === "darwin") {
 } else if (isWin) {
   targets = {
     name: "ffmpeg-x86_64-pc-windows-msvc.exe",
-    url: "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip",
-    sha256: "96da2e45528106314a3d474ccbbc9c8a7a32b3ba731754b78623cb8c9429b8e9",
+    url: "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+    sha256: "0e871d6bd7fcec6c444b0bf690a8e17320ddce6a81fa98b549ef183d2b3a0611",
     zip: true,
-    inner: "ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe",
+    inner: "ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe",
   };
 } else {
   targets = {
