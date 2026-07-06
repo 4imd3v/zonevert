@@ -194,7 +194,7 @@ svg {
   gap: 12px;
   flex: 0 0 auto;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -315,7 +315,7 @@ svg {
   align-items: center;
   flex: 0 0 auto;
   height: 26px;
-  padding: 0 12px;
+  padding: 0 16px;
   color: var(--text-faint);
   font-size: 10px;
   font-weight: 700;
@@ -337,7 +337,7 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 0;
+  padding: 0 0 6px;
 }
 
 .run-column {
@@ -365,7 +365,7 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 6px 16px;
   border-bottom: 1px solid var(--border);
   background: transparent;
 }
@@ -424,7 +424,7 @@ svg {
 
 .primary-button,
 .secondary-button {
-  padding: 0 10px;
+  padding: 0 14px;
   font-size: 12px;
   min-height: 26px;
 }
@@ -537,7 +537,7 @@ svg {
   display: grid;
   gap: 2px;
   overflow: auto;
-  padding: 4px 8px 8px;
+  padding: 4px 12px 8px;
   scrollbar-color: var(--border-strong) transparent;
   scrollbar-width: thin;
 }
@@ -704,13 +704,13 @@ svg {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 16px;
 }
 
 .field {
   display: grid;
   gap: 3px;
-  padding: 0 12px 8px;
+  padding: 0 16px 8px;
 }
 .field-grid .field {
   padding: 0;
@@ -760,7 +760,7 @@ svg {
 .range-field {
   display: grid;
   gap: 4px;
-  padding: 0 12px 8px;
+  padding: 0 16px 8px;
 }
 .range-field span {
   display: flex;
@@ -787,7 +787,7 @@ svg {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 0 12px 8px;
+  padding: 0 16px 8px;
 }
 
 .toggle {
@@ -852,7 +852,7 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 12px;
+  padding: 0 16px;
   font-weight: 650;
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -886,7 +886,7 @@ svg {
 .advanced-panel .advanced-button-row {
   display: flex;
   gap: 6px;
-  margin: 0 12px 8px;
+  margin: 0 16px 8px;
 }
 .advanced-panel .secondary-button {
   margin: 0;
@@ -908,7 +908,7 @@ svg {
   border-top: 1px solid var(--border);
   background: #0d1117;
   color: #a5d6ff;
-  padding: 8px 12px;
+  padding: 8px 16px;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -963,7 +963,7 @@ svg {
   border-top: 1px solid var(--border);
   background: #0d1117;
   color: #c9d1d9;
-  padding: 8px 12px;
+  padding: 8px 16px;
 }
 
 :root[data-theme="dark"] .log-panel pre {
@@ -1010,7 +1010,7 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0 10px;
+  padding: 0 14px;
   border-right: 1px solid var(--border);
   white-space: nowrap;
   overflow: hidden;
