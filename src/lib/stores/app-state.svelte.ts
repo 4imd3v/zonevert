@@ -34,6 +34,7 @@ import {
   resetFailed,
   statusLabel,
   type QueueItem,
+  type QueueSummary,
 } from "$lib/logic/queue-state";
 import { parseStderr, type ProgressFrame } from "$lib/logic/progress-parser";
 
@@ -85,18 +86,6 @@ const DEFAULT_SETTINGS: Settings = {
   filter: "",
   outputArgs: "",
 };
-
-export interface QueueSummaryText {
-  total: number;
-  pending: number;
-  running: number;
-  done: number;
-  failed: number;
-  canceled: number;
-  skipped: number;
-  progress: number;
-  text: string;
-}
 
 class AppState {
   // ---- source files ----
@@ -213,7 +202,7 @@ class AppState {
     return this.queue.some((item) => item.status === "failed");
   }
 
-  get queueSummary(): QueueSummaryText {
+  get queueSummary(): QueueSummary {
     return summarizeQueue(this.queue);
   }
 

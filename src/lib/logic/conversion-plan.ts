@@ -131,7 +131,7 @@ export function planConversion(
   };
 }
 
-export function buildArgs(
+function buildArgs(
   file: { path: string; name: string },
   intent: ConversionIntent,
   outputPath: string = getOutputPath(file, intent),
@@ -195,7 +195,7 @@ export function buildResizeFilter(resize: {
   return `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
 }
 
-export function getOutputPath(
+function getOutputPath(
   file: { path: string; name: string },
   intent: ConversionIntent,
   index = 0,
@@ -228,7 +228,7 @@ export function formatCommand(args: string[], options: { platform?: string } = {
   return args.map((arg) => formatArgForCommand(arg, options)).join(" ");
 }
 
-export function formatArgForCommand(value: unknown, options: { platform?: string } = {}): string {
+function formatArgForCommand(value: unknown, options: { platform?: string } = {}): string {
   const text = String(value || "");
 
   if (!text) {

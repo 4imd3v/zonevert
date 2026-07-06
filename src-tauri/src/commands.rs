@@ -84,20 +84,6 @@ pub struct ConvertRequest {
     pub args: Vec<String>,
 }
 
-// ---- helpers ----
-
-/// Resolves the ffmpeg/ffprobe binary path: explicit > FFMPEG_PATH env > "ffmpeg".
-/// Mirrors main.js resolveFfmpegPath exactly.
-fn resolve_path(explicit: Option<String>) -> String {
-    match explicit
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty())
-    {
-        Some(p) => p,
-        None => std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".into()),
-    }
-}
-
 // ---- commands ----
 
 /// Returns Electron-style platform strings so conversion-plan.ts
@@ -120,7 +106,7 @@ pub fn platform() -> &'static str {
 
 #[tauri::command]
 pub async fn probe_ffmpeg(ffmpeg_path: Option<String>) -> ProbeResult {
-    ffmpeg::probe(&resolve_path(ffmpeg_path)).await
+    ffmpeg::probe(&ffmpeg::resolve_explicit_or(&ffmpeg_path, "ffmpeg")).await
 }
 
 #[tauri::command]
@@ -129,8 +115,8 @@ pub async fn convert(
     state: State<'_, ProcessRegistry>,
     payload: ConvertRequest,
 ) -> Result<ConvertResult, String> {
-    // Defense-in-depth bounds from ipc-validation.ts:
-    // jobId <= 128, args <= 512, each arg <= 8192.
+    // Server-side bounds: jobId <= 128, args <= 512, each arg <= 8192.
+    // This is the trust boundary (browser can be bypassed), not a mirror of client code.
     if payload.job_id.len() > 128 {
         return Ok(ConvertResult {
             ok: false,
@@ -219,13 +205,8 @@ pub async fn image_thumbnail(file_path: String) -> ThumbnailResult {
 
 #[tauri::command]
 pub async fn probe_image(file_path: String, ffmpeg_path: Option<String>) -> ProbeImageResult {
-    ffmpeg::probe_image(&file_path, &resolve_path(ffmpeg_path)).await
+    ffmpeg::probe_image(&file_path, &ffmpeg::resolve_explicit_or(&ffmpeg_path, "ffmpeg")).await
 }
-
-// The validation bounds above (128/512/8192) replicate ipc-validation.ts
-// server-side. If you change a constant, update both files.
-// (ipc-validation.ts is the source of truth — it's where the limits were
-// originally defined.)
 
 #[cfg(test)]
 mod tests {

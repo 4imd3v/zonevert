@@ -291,7 +291,7 @@ pub async fn thumbnail(path: &str, width: u32) -> ThumbnailResult {
 
 // ---- helpers ----
 
-fn resolve_explicit_or(explicit: &Option<String>, fallback: &str) -> String {
+pub fn resolve_explicit_or(explicit: &Option<String>, fallback: &str) -> String {
     match explicit.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(p) => p.to_owned(),
         None => std::env::var("FFMPEG_PATH").unwrap_or_else(|_| fallback.into()),
