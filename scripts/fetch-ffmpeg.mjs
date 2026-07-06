@@ -4,7 +4,7 @@
 // build instead of silently shipping a different binary.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, copyFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, copyFileSync, rmSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,8 +14,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const binDir = resolve(__dirname, "../src-tauri/binaries");
 const isWin = process.platform === "win32";
 
-// ponytail: linux = stable johnvansickle 6.0.1; macOS = same (both arches);
-// windows = BtbN autobuild. Bump version + sha256 when you want newer ffmpeg.
+// ponytail: linux/macOS = johnvansickle 7.0.2 static (GPLv3); windows = BtbN
+// autobuild. Bump version + sha256 when you want newer ffmpeg.
 let targets;
 if (process.platform === "darwin") {
   // Apple Silicon vs Intel — pick the matching johnvansickle darwin build.
@@ -23,11 +23,11 @@ if (process.platform === "darwin") {
   const triple = process.arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin";
   targets = {
     name: `ffmpeg-${triple}`,
-    url: `https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-${arch}-static.tar.xz`,
+    url: `https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-${arch}-static.tar.xz`,
     sha256:
       arch === "arm64"
-        ? "7dbd8e2f47bd83de591b9d6ea70e67d32d9aa97e7d47ae402b60c2fe3fd4d0ab"
-        : "28268bf402f1083833ea269331587f60a242848880073be8016501d864bd07a5",
+        ? "f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1"
+        : "abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67",
     zip: false,
     inner: "ffmpeg",
   };
@@ -42,8 +42,8 @@ if (process.platform === "darwin") {
 } else {
   targets = {
     name: "ffmpeg-x86_64-unknown-linux-gnu",
-    url: "https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-amd64-static.tar.xz",
-    sha256: "28268bf402f1083833ea269331587f60a242848880073be8016501d864bd07a5",
+    url: "https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz",
+    sha256: "abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67",
     zip: false,
     inner: "ffmpeg",
   };
@@ -55,8 +55,8 @@ if (existsSync(dest)) {
 }
 mkdirSync(binDir, { recursive: true });
 
-const tmp = tmpdir();
-const archive = join(tmp, `zv-ffmpeg-${isWin ? "win.zip" : "linux.tar.xz"}`);
+const tmp = mkdtempSync(join(tmpdir(), "zv-ffmpeg-"));
+const archive = join(tmp, isWin ? "win.zip" : "linux.tar.xz");
 download(targets.url, archive);
 
 const actual = sha256File(archive);
@@ -70,13 +70,12 @@ if (actual !== targets.sha256) {
 if (targets.zip) {
   unzip(archive, tmp);
   copyFileSync(join(tmp, targets.inner), dest);
-  rmSync(join(tmp, targets.inner), { force: true });
 } else {
   execFileSync("tar", ["-xf", archive, "-C", tmp]);
   const extracted = join(tmp, readdirSync(tmp).find((d) => d.startsWith("ffmpeg-")) || "", targets.inner);
   copyFileSync(extracted, dest);
-  rmSync(extracted, { force: true });
 }
+rmSync(tmp, { recursive: true, force: true });
 console.log(`[fetch-ffmpeg] verified + wrote ${dest}`);
 
 function download(url, out) {

@@ -1,7 +1,9 @@
 // Ported from src/conversion-plan.js — UMD wrapper removed, ESM exports added,
 // types added per migrate/07-svelte-frontend.md. Algorithms unchanged.
 
-export type OutputFormat = "webp" | "jpg" | "png" | "avif" | "tiff" | "bmp" | "gif";
+export type OutputFormat =
+  | "webp" | "jpg" | "png" | "avif" | "tiff" | "bmp" | "gif"
+  | "apng" | "jp2" | "exr" | "qoi" | "tga" | "jls";
 export type Preset = "balanced" | "quality" | "small" | "lossless";
 export type CollisionMode = "overwrite" | "skip" | "rename";
 export type ResizeMode = "none" | "inside" | "fill" | "stretch";
@@ -64,7 +66,10 @@ export const PRESET_DEFAULTS: Record<Preset, { quality: number }> = {
   lossless: { quality: 100 },
 };
 
-const supportedFormats = new Set<string>(["webp", "jpg", "png", "avif", "tiff", "bmp", "gif"]);
+const supportedFormats = new Set<string>([
+  "webp", "jpg", "png", "avif", "tiff", "bmp", "gif",
+  "apng", "jp2", "exr", "qoi", "tga", "jls",
+]);
 const supportedPresets = new Set<string>(Object.keys(PRESET_DEFAULTS));
 const supportedResizeModes = new Set<string>(["none", "inside", "fill", "stretch"]);
 const supportedCollisionModes = new Set<string>(["overwrite", "skip", "rename"]);
@@ -85,6 +90,13 @@ const encoderArgs: Record<
   tiff: () => ["-c:v", "tiff"],
   bmp: () => ["-c:v", "bmp"],
   gif: () => ["-c:v", "gif"],
+  // ponytail: below verified present in bundled ffmpeg 7.0.2 static.
+  apng: () => ["-c:v", "png", "-frames:v", "1"],
+  jp2: (quality) => ["-c:v", "libopenjpeg", "-q:v", String(quality)],
+  exr: () => ["-c:v", "exr"],
+  qoi: () => ["-c:v", "qoi"],
+  tga: () => ["-c:v", "targa"],
+  jls: (quality) => ["-c:v", "jpegls", "-q:v", String(quality)],
 };
 
 export function createConversionIntent(options: CreateIntentOptions = {}): ConversionIntent {

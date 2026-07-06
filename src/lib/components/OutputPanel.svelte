@@ -27,6 +27,12 @@
         <option value="tiff">TIFF</option>
         <option value="bmp">BMP</option>
         <option value="gif">GIF</option>
+        <option value="apng">APNG</option>
+        <option value="jp2">JPEG 2000</option>
+        <option value="jls">JPEG-LS</option>
+        <option value="exr">OpenEXR</option>
+        <option value="qoi">QOI</option>
+        <option value="tga">Targa</option>
       </select>
     </label>
 

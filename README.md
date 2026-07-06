@@ -96,10 +96,29 @@ mismatched download fails the build. Current pins:
 
 | Platform | Source | Version | Triple |
 |----------|--------|---------|--------|
-| Linux   | johnvansickle.com | 6.0.1 static | `x86_64-unknown-linux-gnu` |
+| Linux   | johnvansickle.com | 7.0.2 static (GPLv3) | `x86_64-unknown-linux-gnu` |
 | Windows | BtbN/FFmpeg-Builds (`latest`) | win64 gpl-shared | `x86_64-pc-windows-msvc` |
-| macOS (Apple Silicon) | johnvansickle.com | 6.0.1 static | `aarch64-apple-darwin` |
-| macOS (Intel) | johnvansickle.com | 6.0.1 static | `x86_64-apple-darwin` |
+| macOS (Apple Silicon) | johnvansickle.com | 7.0.2 static (GPLv3) | `aarch64-apple-darwin` |
+| macOS (Intel) | johnvansickle.com | 7.0.2 static (GPLv3) | `x86_64-apple-darwin` |
+
+> GPL note: johnvansickle static builds are GPLv3, BtbN `gpl-shared` is GPL.
+> These are fine for gratis/non-commercial distribution; see Acknowledgements.
+
+### Supported output formats
+
+The UI exposes (all encoded by the bundled FFmpeg):
+
+`webp`, `jpg`, `png`, `avif`, `tiff`, `bmp`, `gif`, `apng`, `jp2` (JPEG 2000),
+`jls` (JPEG-LS), `exr` (OpenEXR), `qoi`, `tga` (Targa).
+
+**Input** accepts many more decoders (including `heic`/`heif`, which FFmpeg
+can *decode* but not *encode* in this build — so HEIC is import-only,
+convertible to any of the output formats above). FFmpeg's full decoder list is
+far broader; use the Advanced panel for anything not in the dropdown.
+
+Notable gaps in the bundled build: **JPEG XL (jxl)** is not compiled into
+johnvansickle 7.0.2 static, and there is **no HEIF muxer** (can't write
+`.heic`). Both require a custom FFmpeg build if needed.
 
 The binaries live in `src-tauri/binaries/` and are git-ignored (fetched on
 demand). Bump the URL + SHA-256 in the script when you intentionally want a
@@ -148,10 +167,10 @@ Per the FFmpeg license, the corresponding source for the bundled binaries is
 available here:
 
 - FFmpeg (all platforms): <https://ffmpeg.org/download.html> — source for the
-  6.0.1 release used by the Linux/macOS builds, and the current release used by
+  7.0.2 release used by the Linux/macOS builds, and the current release used by
   the Windows build.
 - Linux & macOS static builds: <https://johnvansickle.com/ffmpeg/> (build
-  configuration and source references for the 6.0.1 static builds).
+  configuration and source references for the 7.0.2 static builds).
 - Windows builds: <https://github.com/BtbN/FFmpeg-Builds> (build scripts and
   source for the `gpl-shared` artifacts).
 
