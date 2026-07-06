@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appState } from "$lib/stores/app-state.svelte";
   import { onMount } from "svelte";
+  import logoUrl from "$lib/assets/Zonevert.png";
   import Icon from "./Icon.svelte";
 
   // Sync theme to <html data-theme> whenever it changes.
@@ -12,7 +13,7 @@
 <header class="app-header">
   <div class="brand-block">
     <div class="brand-mark" aria-hidden="true">
-      <Icon name="image" />
+      <img src={logoUrl} alt="Zonevert" width="24" height="24" />
     </div>
     <div class="brand-text">
       <h1>Zonevert</h1>

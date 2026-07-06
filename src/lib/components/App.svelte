@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { appState } from "$lib/stores/app-state.svelte";
-  import Icon from "./Icon.svelte";
   import Topbar from "./Topbar.svelte";
   import SummaryStrip from "./SummaryStrip.svelte";
   import Workspace from "./Workspace.svelte";
@@ -58,8 +57,6 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
-
-<Icon name="image" />
 
 <main class="app-shell">
   <Topbar />
