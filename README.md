@@ -1,13 +1,18 @@
 # Zonevert
 
-Zonevert is a Windows and Linux desktop UI for batch image conversion through FFmpeg.
+Zonevert is a cross-platform (Windows, Linux, macOS) desktop UI for batch image conversion through FFmpeg.
 
 ## Requirements
 
 - Node.js and pnpm
 - Rust toolchain (stable ≥ 1.77.2)
 - System WebView: WebView2 on Windows, `webkit2gtk-4.1` + `libgtk-3` on Linux
-- FFmpeg installed on `PATH`, or a custom FFmpeg path entered in the app
+- FFmpeg — **bundled automatically** (see FFmpeg below). A custom FFmpeg path
+  can still be entered in the app's Advanced panel, or set via the `FFMPEG_PATH`
+  env var.
+
+> macOS build host needs the Rust targets `aarch64-apple-darwin` and
+> `x86_64-apple-darwin` (`rustup target add aarch64-apple-darwin x86_64-apple-darwin`).
 
 ## Run
 
@@ -17,6 +22,8 @@ pnpm tauri dev
 ```
 
 `pnpm tauri dev` starts the Vite dev server (HMR) and launches the Tauri window.
+On first run it downloads the bundled FFmpeg sidecar for your platform (see
+FFmpeg below).
 
 For frontend-only development without the native window:
 
@@ -39,18 +46,64 @@ pure-logic modules (`src/lib/logic/*.ts`) via `tsx`.
 Build on the target operating system when possible:
 
 ```bash
-pnpm run package:linux
-pnpm run package:windows
+pnpm run package:linux    # .deb + .AppImage
+pnpm run package:windows  # NSIS + MSI installers
+pnpm run package:macos     # .dmg (Apple Silicon native)
 ```
 
 Linux packaging outputs `.deb` and `.AppImage`. Windows packaging outputs NSIS
-and MSI installers. Cross-building Windows installers from Linux requires Wine.
-
-Generated package output is ignored by Git. To remove local build artifacts:
+and MSI installers. macOS packaging outputs a `.dmg` (built natively on an
+Apple Silicon runner). Cross-building Windows installers from Linux requires
+Wine. Generated package output is ignored by Git. To remove local build
+artifacts:
 
 ```bash
 pnpm run clean
 ```
+
+### CI release builds
+
+`.github/workflows/release.yml` builds all three platforms on tag push
+(`v*`) or manual dispatch, and attaches the artifacts to a GitHub Release.
+The bundled FFmpeg sidecar is fetched and checksum-verified during packaging
+— no manual FFmpeg setup needed.
+
+### macOS signing & notarization
+
+The macOS `.dmg` is built **unsigned**. Users can still run it by
+right-clicking → Open (or System Settings → Privacy & Security → "Open
+Anyway"), but Gatekeeper blocks it by default and auto-update requires
+signing. To ship a zero-friction Mac build, provide an Apple Developer ID
+certificate and set the CI secrets `TAURI_SIGNING_IDENTITY`, `APPLE_ID`,
+`APPLE_PASSWORD`, and `APPLE_TEAM_ID`; `tauri build` then notarizes
+automatically.
+
+## FFmpeg
+
+FFmpeg is bundled as a Tauri [external binary](https://v2.tauri.app/develop/sidecar/)
+(sidecar) and shipped inside each installer, so **no system FFmpeg is required**.
+Resolution order when the app runs a conversion:
+
+1. Custom path from the Advanced panel (if set)
+2. `FFMPEG_PATH` environment variable
+3. Bundled sidecar
+4. `ffmpeg` on `PATH`
+
+The sidecar binaries are downloaded by `scripts/fetch-ffmpeg.mjs` (run
+automatically via the `predev` / `prepackage:*` npm hooks) and are
+**pinned to a specific version with a verified SHA-256** — a changed or
+mismatched download fails the build. Current pins:
+
+| Platform | Source | Version | Triple |
+|----------|--------|---------|--------|
+| Linux   | johnvansickle.com | 6.0.1 static | `x86_64-unknown-linux-gnu` |
+| Windows | BtbN/FFmpeg-Builds (`latest`) | win64 gpl-shared | `x86_64-pc-windows-msvc` |
+| macOS (Apple Silicon) | johnvansickle.com | 6.0.1 static | `aarch64-apple-darwin` |
+| macOS (Intel) | johnvansickle.com | 6.0.1 static | `x86_64-apple-darwin` |
+
+The binaries live in `src-tauri/binaries/` and are git-ignored (fetched on
+demand). Bump the URL + SHA-256 in the script when you intentionally want a
+newer FFmpeg.
 
 ## Architecture
 
