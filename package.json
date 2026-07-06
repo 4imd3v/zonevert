@@ -25,8 +25,8 @@
         "prepackage:windows": "node scripts/fetch-ffmpeg.mjs",
         "package:macos": "tauri build --bundles dmg",
         "prepackage:macos": "node scripts/fetch-ffmpeg.mjs",
-        "version": "node scripts/sync-version.mjs",
-        "postversion": "git add -A && git commit -m \"chore: release v$npm_package_version\" && git tag v$npm_package_version"
+        "version": "node scripts/sync-version.mjs && git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock",
+        "postversion": "git status --short"
     },
     "dependencies": {
         "@tauri-apps/api": "^2.11.1",
