@@ -1,6 +1,6 @@
 [package]
 name = "zonevert"
-version = "0.3.4"
+version = "0.3.5"
 description = "A cross-platform desktop UI for batch image conversion with FFmpeg."
 authors = ["Zonevert Maintainers <maintainers@zonevert.dev>"]
 license = "MIT"
