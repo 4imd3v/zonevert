@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseLine, parseStderr, timeToSeconds } = require("../src/lib/logic/progress-parser");
+const { parseLine, parseStderr } = require("../src/lib/logic/progress-parser");
 
 test("parses a single FFmpeg progress line", () => {
   const result = parseLine("frame=  123 fps= 45 q=28.0 size=    1024kB time=00:00:05.12 bitrate=1638.4kbits/s");
@@ -34,12 +34,4 @@ frame=  30 fps= 30 q=28.0 size=     384kB time=00:00:01.20 bitrate=2621.4kbits/s
   const result = parseStderr(chunk);
   assert.equal(result.frame, 30);
   assert.equal(result.time, "00:00:01.20");
-});
-
-test("converts time strings to seconds", () => {
-  assert.equal(timeToSeconds("00:00:05.12"), 5.12);
-  assert.equal(timeToSeconds("00:01:30.00"), 90);
-  assert.equal(timeToSeconds("01:00:00.00"), 3600);
-  assert.equal(timeToSeconds(null), null);
-  assert.equal(timeToSeconds("invalid"), null);
 });

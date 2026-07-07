@@ -18,7 +18,7 @@ test("full queue lifecycle: create → run → mark → summarize", () => {
     { path: "/in/c.png", name: "c.png" }
   ];
 
-  const queue = createQueue(files, intent, (file, i) => planConversion(file, intent, i), () => "job-x");
+  const queue = createQueue(files, intent, (file, _intent, index) => planConversion(file, intent, index), () => "job-x");
 
   assert.equal(queue.length, 3);
   assert.equal(queue.every((item) => item.status === "pending"), true);
@@ -66,7 +66,7 @@ test("collision resolution during full lifecycle", () => {
     { path: "/other/photo.png", name: "photo.png" }
   ];
 
-  const queue = createQueue(files, intent, (file, i) => planConversion(file, intent, i), () => "job-y");
+  const queue = createQueue(files, intent, (file, _intent, index) => planConversion(file, intent, index), () => "job-y");
 
   // Both output to /out/photo.webp since same output dir — collision resolved
   assert.equal(queue[0].outputPath, "/out/photo.webp");

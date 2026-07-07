@@ -27,16 +27,14 @@ export interface QueueSummary {
   text: string;
 }
 
-const terminalStatuses = new Set<string>(["done", "failed", "canceled", "skipped"]);
-
 export function createQueue(
   files: { path: string; name: string }[],
   intent: ConversionIntent,
-  planner: (file: { path: string; name: string }, intent: ConversionIntent) => ConversionPlan,
+  planner: (file: { path: string; name: string }, intent: ConversionIntent, index?: number) => ConversionPlan,
   createId: () => string = defaultCreateId,
 ): QueueItem[] {
-  const queue = files.map((file) => {
-    const plan = planner(file, intent);
+  const queue = files.map((file, index) => {
+    const plan = planner(file, intent, index);
 
     return {
       id: createId(),
@@ -143,14 +141,6 @@ export function markResult(
 export function markCanceled(item: QueueItem): QueueItem {
   item.status = "canceled";
   return item;
-}
-
-export function cancelPending(queue: QueueItem[]): void {
-  for (const item of queue) {
-    if (!terminalStatuses.has(item.status)) {
-      markCanceled(item);
-    }
-  }
 }
 
 export function statusLabel(status: QueueItemStatus): string {

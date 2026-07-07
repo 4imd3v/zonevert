@@ -1,9 +1,10 @@
 <script lang="ts">
   import { appState } from "$lib/stores/app-state.svelte";
+import { buildFilterGraph } from "$lib/logic/conversion-plan";
 
   let summary = $derived.by(() => {
     const intent = appState.intent;
-    const filter = appState.buildResizeFilterText();
+    const filter = buildFilterGraph(intent);
     if (!filter) return "Original dimensions";
 
     if (appState.files.length && appState.imageMeta.size) {

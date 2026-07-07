@@ -18,7 +18,6 @@ import {
   createConversionIntent,
   planConversion,
   formatCommand,
-  buildResizeFilter,
   PRESET_DEFAULTS,
   type ConversionIntent,
 } from "$lib/logic/conversion-plan";
@@ -30,9 +29,7 @@ import {
   markResult,
   markCanceled,
   markSkipped,
-  cancelPending,
   resetFailed,
-  statusLabel,
   type QueueItem,
   type QueueSummary,
 } from "$lib/logic/queue-state";
@@ -44,7 +41,6 @@ export interface Settings {
   format: string;
   preset: string;
   quality: number;
-  overwrite: boolean;
   collisionMode: string;
   metadata: boolean;
   resizeMode: string;
@@ -69,7 +65,6 @@ const DEFAULT_SETTINGS: Settings = {
   format: "webp",
   preset: "balanced",
   quality: 82,
-  overwrite: true,
   collisionMode: "overwrite",
   metadata: false,
   resizeMode: "none",
@@ -158,7 +153,6 @@ class AppState {
       format: s.format,
       preset: s.preset,
       quality: s.quality,
-      overwrite: s.overwrite,
       collisionMode: s.collisionMode,
       keepMetadata: s.metadata,
       outputDir: this.outputDir,
@@ -322,8 +316,8 @@ class AppState {
     const intent = this.intent;
 
     if (!retry) {
-      this.queue = createQueue(this.files, intent, (file, intent) =>
-        planConversion(file, intent),
+      this.queue = createQueue(this.files, intent, (file, intent, index) =>
+        planConversion(file, intent, index),
       );
     }
     this.isConverting = true;
@@ -527,8 +521,8 @@ class AppState {
     }
     const intent = this.intent;
     const isWindows = this.platform === "win32";
-    const lines = this.files.map((file) => {
-      const plan = planConversion(file, intent);
+    const lines = this.files.map((file, index) => {
+      const plan = planConversion(file, intent, index);
       return formatCommand([intent.ffmpegPath, ...plan.args], { platform: this.platform });
     });
     const shebang = isWindows ? "@echo off\r\n" : "#!/bin/sh\n";
@@ -611,14 +605,6 @@ class AppState {
   }
 
   // ---- helpers exposed to components ----
-
-  statusLabel(status: string): string {
-    return statusLabel(status as QueueItem["status"]);
-  }
-
-  buildResizeFilterText(): string {
-    return buildResizeFilter(this.intent.resize);
-  }
 }
 
 // Singleton — imported by every component.

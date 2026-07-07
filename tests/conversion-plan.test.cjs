@@ -18,7 +18,7 @@ test("plans FFmpeg args from conversion intent", () => {
     preset: "quality",
     quality: 94,
     outputDir: "/exports",
-    overwrite: false,
+    collisionMode: "skip",
     keepMetadata: false,
     resizeMode: "inside",
     width: "1200",

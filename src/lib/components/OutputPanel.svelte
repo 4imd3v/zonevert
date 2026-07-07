@@ -54,11 +54,6 @@
 
   <div class="toggle-row">
     <label class="toggle">
-      <input type="checkbox" bind:checked={appState.settings.overwrite} onchange={() => appState.persistSettings()} />
-      <span></span>
-      <strong>Overwrite</strong>
-    </label>
-    <label class="toggle">
       <input type="checkbox" bind:checked={appState.settings.metadata} onchange={() => appState.persistSettings()} />
       <span></span>
       <strong>Keep metadata</strong>

@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  cancelPending,
   createQueue,
   markResult,
   markRunning,
@@ -11,6 +10,7 @@ const {
   statusLabel,
   summarizeQueue
 } = require("../src/lib/logic/queue-state");
+const { createConversionIntent, planConversion } = require("../src/lib/logic/conversion-plan");
 
 test("creates queue items from planned conversions", () => {
   const files = [{ path: "/in/a.png", name: "a.png" }];
@@ -62,9 +62,10 @@ test("marks cancellation without treating it as failure", () => {
 
   markRunning(queue[0]);
   markResult(queue[0], { ok: false }, true);
-  cancelPending(queue);
+  // ponytail: cancelPending removed — only running item reaches markResult;
+  // pending items are canceled via markCanceled in the store's cancel path.
 
-  assert.deepEqual(queue.map((item) => item.status), ["canceled", "canceled"]);
+  assert.deepEqual(queue.map((item) => item.status), ["canceled", "pending"]);
   assert.equal(statusLabel("canceled"), "Canceled");
 });
 
@@ -81,6 +82,19 @@ test("resolves output path collisions with numeric suffixes", () => {
   assert.equal(queue[1].outputPath, "/out/photo-1.webp");
   assert.equal(queue[2].outputPath, "/out/photo-2.webp");
   assert.equal(queue[1].args[2], "/out/photo-1.webp");
+});
+
+test("sequential numbering produces 001, 002, ...", () => {
+  const intent = createConversionIntent({ format: "webp", outputDir: "/out", naming: { sequential: true } });
+  const files = [
+    { path: "/in/a.png", name: "a.png" },
+    { path: "/in/b.png", name: "b.png" },
+    { path: "/in/c.png", name: "c.png" },
+  ];
+  const queue = createQueue(files, intent, (file, _intent, index) => planConversion(file, intent, index), () => "job-seq");
+  assert.equal(queue[0].outputPath, "/out/001.webp");
+  assert.equal(queue[1].outputPath, "/out/002.webp");
+  assert.equal(queue[2].outputPath, "/out/003.webp");
 });
 
 test("marks items as skipped and includes them in summary", () => {

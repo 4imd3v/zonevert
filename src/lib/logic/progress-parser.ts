@@ -48,20 +48,3 @@ export function parseStderr(text: unknown): ProgressFrame | null {
   return last;
 }
 
-// timeToSeconds: "00:00:05.12" -> 5.12
-export function timeToSeconds(timeStr: string | null): number | null {
-  if (!timeStr || typeof timeStr !== "string") {
-    return null;
-  }
-
-  const parts = timeStr.split(":");
-  if (parts.length !== 3) {
-    return null;
-  }
-
-  const hours = Number.parseFloat(parts[0]) || 0;
-  const minutes = Number.parseFloat(parts[1]) || 0;
-  const seconds = Number.parseFloat(parts[2]) || 0;
-
-  return hours * 3600 + minutes * 60 + seconds;
-}

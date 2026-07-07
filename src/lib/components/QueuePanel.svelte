@@ -1,5 +1,6 @@
 <script lang="ts">
   import { appState } from "$lib/stores/app-state.svelte";
+  import { statusLabel } from "$lib/logic/queue-state";
   import { basename } from "$lib/logic/conversion-plan";
   import Icon from "./Icon.svelte";
 
@@ -69,7 +70,7 @@
             <span>{item.outputPath}</span>
             <span class="queue-progress-text">{formatItemProgress(item)}</span>
           </div>
-          <span>{appState.statusLabel(item.status)}</span>
+          <span>{statusLabel(item.status)}</span>
         </div>
       {/each}
     {/if}

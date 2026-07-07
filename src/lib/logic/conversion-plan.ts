@@ -19,7 +19,6 @@ export interface ConversionIntent {
   format: OutputFormat;
   preset: Preset;
   quality: number;
-  overwrite: boolean;
   collisionMode: CollisionMode;
   keepMetadata: boolean;
   outputDir: string;
@@ -44,7 +43,6 @@ interface CreateIntentOptions {
   format?: string;
   preset?: string;
   quality?: number;
-  overwrite?: boolean;
   collisionMode?: string;
   keepMetadata?: boolean;
   outputDir?: string;
@@ -107,7 +105,6 @@ export function createConversionIntent(options: CreateIntentOptions = {}): Conve
     format: normalizeFormat(options.format),
     preset,
     quality,
-    overwrite: options.overwrite !== false,
     collisionMode: normalizeCollisionMode(options.collisionMode),
     keepMetadata: Boolean(options.keepMetadata),
     outputDir: String(options.outputDir || ""),
@@ -149,7 +146,7 @@ function buildArgs(
   outputPath: string = getOutputPath(file, intent),
 ): string[] {
   const filterGraph = buildFilterGraph(intent);
-  const overwrite = intent.overwrite && intent.collisionMode !== "skip";
+  const overwrite = intent.collisionMode !== "skip";
   const args = [
     "-hide_banner",
     ...intent.advanced.globalArgs,
@@ -411,7 +408,7 @@ export function extension(name: string): string {
   return index > 0 ? fileName.slice(index + 1).toLowerCase() : "";
 }
 
-export function stem(name: string): string {
+function stem(name: string): string {
   const fileName = basename(name);
   const index = fileName.lastIndexOf(".");
   return index > 0 ? fileName.slice(0, index) : fileName;
