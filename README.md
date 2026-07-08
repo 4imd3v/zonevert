@@ -97,11 +97,11 @@ mismatched download fails the build. Current pins:
 | Platform | Source | Version | Triple |
 |----------|--------|---------|--------|
 | Linux   | johnvansickle.com | 7.0.2 static (GPLv3) | `x86_64-unknown-linux-gnu` |
-| Windows | BtbN/FFmpeg-Builds (`latest`) | win64 gpl-shared | `x86_64-pc-windows-msvc` |
+| Windows | BtbN/FFmpeg-Builds | autobuild 2026-07-07 win64 gpl | `x86_64-pc-windows-msvc` |
 | macOS (Apple Silicon) | johnvansickle.com | 7.0.2 static (GPLv3) | `aarch64-apple-darwin` |
 | macOS (Intel) | johnvansickle.com | 7.0.2 static (GPLv3) | `x86_64-apple-darwin` |
 
-> GPL note: johnvansickle static builds are GPLv3, BtbN `gpl-shared` is GPL.
+> GPL note: johnvansickle static builds are GPLv3, BtbN `gpl` is GPL.
 > These are fine for gratis/non-commercial distribution; see Acknowledgements.
 
 ### Supported output formats
@@ -154,7 +154,7 @@ static builds:
   ([johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/)),
   licensed under the GNU GPL.
 - **Windows**: builds from BtbN's
-  [FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (GPL shared),
+  [FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (GPL),
   licensed under the GNU GPL.
 
 These binaries are fetched and SHA-256 verified by `scripts/fetch-ffmpeg.mjs`
@@ -167,12 +167,12 @@ Per the FFmpeg license, the corresponding source for the bundled binaries is
 available here:
 
 - FFmpeg (all platforms): <https://ffmpeg.org/download.html> — source for the
-  7.0.2 release used by the Linux/macOS builds, and the current release used by
+  7.0.2 release used by the Linux/macOS builds, and the pinned autobuild used by
   the Windows build.
 - Linux & macOS static builds: <https://johnvansickle.com/ffmpeg/> (build
   configuration and source references for the 7.0.2 static builds).
 - Windows builds: <https://github.com/BtbN/FFmpeg-Builds> (build scripts and
-  source for the `gpl-shared` artifacts).
+  source for the `gpl` artifacts).
 
 Zonevert itself is released under the MIT License; the bundled FFmpeg binaries
 are covered by the GNU GPL/LGPL as noted above.

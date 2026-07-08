@@ -14,8 +14,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const binDir = resolve(__dirname, "../src-tauri/binaries");
 const isWin = process.platform === "win32";
 
-// ponytail: linux/macOS = johnvansickle 7.0.2 static (GPLv3); windows = BtbN
-// autobuild. Bump version + sha256 when you want newer ffmpeg.
+// ponytail: linux/macOS = johnvansickle 7.0.2 static (GPLv3); windows = pinned
+// BtbN autobuild. Bump URL + sha256 when you want newer ffmpeg.
 let targets;
 if (process.platform === "darwin") {
   // Apple Silicon vs Intel — pick the matching johnvansickle darwin build.
@@ -34,10 +34,10 @@ if (process.platform === "darwin") {
 } else if (isWin) {
   targets = {
     name: "ffmpeg-x86_64-pc-windows-msvc.exe",
-    url: "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-    sha256: "0e871d6bd7fcec6c444b0bf690a8e17320ddce6a81fa98b549ef183d2b3a0611",
+    url: "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-07-13-44/ffmpeg-N-125485-ga41f543113-win64-gpl.zip",
+    sha256: "b3294777fb2ed48a41723c883f3fc8aa933c451f97f44aa82682278287bc3b8e",
     zip: true,
-    inner: "ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe",
+    inner: "ffmpeg-N-125485-ga41f543113-win64-gpl/bin/ffmpeg.exe",
   };
 } else {
   targets = {
