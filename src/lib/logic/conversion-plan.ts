@@ -88,7 +88,7 @@ const encoderArgs: Record<
   tiff: () => ["-c:v", "tiff"],
   bmp: () => ["-c:v", "bmp"],
   gif: () => ["-c:v", "gif"],
-  // ponytail: below verified present in bundled ffmpeg 7.0.2 static.
+  // ponytail: encoders below are standard in distro ffmpeg builds.
   apng: () => ["-c:v", "png", "-frames:v", "1"],
   jp2: (quality) => ["-c:v", "libopenjpeg", "-q:v", String(quality)],
   exr: () => ["-c:v", "exr"],

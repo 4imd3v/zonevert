@@ -3,5 +3,5 @@
 /target/
 /gen/schemas
 
-# Bundled ffmpeg sidecar (fetched by scripts/fetch-ffmpeg.mjs)
+# (no bundled sidecar; FFmpeg is user-installed)
 binaries/

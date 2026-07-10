@@ -291,31 +291,19 @@ pub async fn thumbnail(app: Option<&AppHandle>, path: &str, width: u32) -> Thumb
 
 // ---- helpers ----
 
-use tauri::{Manager, path::BaseDirectory};
-
 /// Resolve the ffmpeg executable, in priority order:
 ///   1. explicit user path (if non-empty)
 ///   2. FFMPEG_PATH env var
-///   3. bundled sidecar (binaries/ffmpeg, on PATH at runtime)
-///   4. bare "ffmpeg" (system PATH)
-/// The bundled sidecar is preferred over a system ffmpeg so the app works
-/// with zero user setup.
-pub fn resolve_ffmpeg(app: Option<&AppHandle>, explicit: &Option<String>) -> String {
+///   3. bare "ffmpeg" (system PATH)
+/// No bundled sidecar — the app relies on a system ffmpeg. Users without
+/// one must install it (see README); the Advanced panel lets them set a path.
+pub fn resolve_ffmpeg(_app: Option<&AppHandle>, explicit: &Option<String>) -> String {
     if let Some(p) = explicit.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         return p.to_owned();
     }
     if let Ok(env) = std::env::var("FFMPEG_PATH") {
         if !env.trim().is_empty() {
             return env.trim().to_owned();
-        }
-    }
-    // ponytail: externalBin sidecar is placed next to the binary on PATH at
-    // runtime; resolve() also works when run from target/debug during dev.
-    if let Some(app) = app {
-        if let Ok(sidecar) = app.path().resolve("ffmpeg", BaseDirectory::Resource) {
-            if sidecar.exists() {
-                return sidecar.to_string_lossy().into_owned();
-            }
         }
     }
     "ffmpeg".into()

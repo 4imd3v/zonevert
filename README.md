@@ -7,9 +7,9 @@ Zonevert is a cross-platform (Windows, Linux, macOS) desktop UI for batch image 
 - Node.js and pnpm
 - Rust toolchain (stable ≥ 1.77.2)
 - System WebView: WebView2 on Windows, `webkit2gtk-4.1` + `libgtk-3` on Linux
-- FFmpeg — **bundled automatically** (see FFmpeg below). A custom FFmpeg path
-  can still be entered in the app's Advanced panel, or set via the `FFMPEG_PATH`
-  env var.
+- **FFmpeg installed on your system** (see [FFmpeg](#ffmpeg) below). A custom
+  FFmpeg path can be entered in the app's Advanced panel, or set via the
+  `FFMPEG_PATH` env var.
 
 > macOS build host needs the Rust targets `aarch64-apple-darwin` and
 > `x86_64-apple-darwin` (`rustup target add aarch64-apple-darwin x86_64-apple-darwin`).
@@ -21,9 +21,8 @@ pnpm install
 pnpm tauri dev
 ```
 
-`pnpm tauri dev` starts the Vite dev server (HMR) and launches the Tauri window.
-On first run it downloads the bundled FFmpeg sidecar for your platform (see
-FFmpeg below).
+`pnpm tauri dev` starts the Vite dev server (HMR) and launches the Tauri
+window. FFmpeg must already be on your `PATH` (or set `FFMPEG_PATH`).
 
 For frontend-only development without the native window:
 
@@ -65,8 +64,8 @@ pnpm run clean
 
 `.github/workflows/release.yml` builds all three platforms on tag push
 (`v*`) or manual dispatch, and attaches the artifacts to a GitHub Release.
-The bundled FFmpeg sidecar is fetched and checksum-verified during packaging
-— no manual FFmpeg setup needed.
+No FFmpeg is needed at build time — the app shells out to the user's system
+`ffmpeg` at runtime.
 
 ### macOS signing & notarization
 
@@ -145,34 +144,6 @@ arguments so FFmpeg options can be used without changing the UI code.
 
 ## Acknowledgements
 
-Zonevert bundles [FFmpeg](https://ffmpeg.org/) as a sidecar. FFmpeg is
-licensed under the GNU LGPL/GPL — see its source for details. The bundled
-binaries are not built by this project; they are downloaded from third-party
-static builds:
-
-- **Linux & macOS**: static builds by John VanSickle
-  ([johnvansickle.com/ffmpeg](https://johnvansickle.com/ffmpeg/)),
-  licensed under the GNU GPL.
-- **Windows**: builds from BtbN's
-  [FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (GPL),
-  licensed under the GNU GPL.
-
-These binaries are fetched and SHA-256 verified by `scripts/fetch-ffmpeg.mjs`
-(pinned versions, see the FFmpeg section above). If you redistribute Zonevert,
-ensure compliance with FFmpeg's license terms for the bundled binaries.
-
-### FFmpeg source offer
-
-Per the FFmpeg license, the corresponding source for the bundled binaries is
-available here:
-
-- FFmpeg (all platforms): <https://ffmpeg.org/download.html> — source for the
-  7.0.2 release used by the Linux/macOS builds, and the pinned autobuild used by
-  the Windows build.
-- Linux & macOS static builds: <https://johnvansickle.com/ffmpeg/> (build
-  configuration and source references for the 7.0.2 static builds).
-- Windows builds: <https://github.com/BtbN/FFmpeg-Builds> (build scripts and
-  source for the `gpl` artifacts).
-
-Zonevert itself is released under the MIT License; the bundled FFmpeg binaries
-are covered by the GNU GPL/LGPL as noted above.
+[FFmpeg](https://ffmpeg.org/) is a separate project licensed under the GNU
+LGPL/GPL. Zonevert does not distribute FFmpeg — users install it themselves.
+Zonevert itself is released under the MIT License.
