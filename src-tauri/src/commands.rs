@@ -114,8 +114,8 @@ pub fn platform() -> &'static str {
 }
 
 #[tauri::command]
-pub async fn probe_ffmpeg(app: tauri::AppHandle, ffmpeg_path: Option<String>) -> ProbeResult {
-    ffmpeg::probe(&ffmpeg::resolve_ffmpeg(Some(&app), &ffmpeg_path)).await
+pub async fn probe_ffmpeg(_app: tauri::AppHandle, ffmpeg_path: Option<String>) -> ProbeResult {
+    ffmpeg::probe(&ffmpeg::resolve_ffmpeg(&ffmpeg_path)).await
 }
 
 #[tauri::command]
@@ -169,8 +169,10 @@ pub async fn cancel(
 ) -> Result<CancelResult, String> {
     let mut map = state.0.lock().await;
     match map.remove(&job_id) {
-        Some(pid) => {
-            crate::state::kill_pid(pid);
+        // notify_one: the permit survives even if run()'s select has not
+        // started polling the Notify yet (no lost-wakeup race).
+        Some((_pid, cancel)) => {
+            cancel.notify_one();
             Ok(CancelResult {
                 ok: true,
                 error: None,
@@ -224,13 +226,13 @@ pub async fn save_file(file_path: String, content: String) -> SaveResult {
 }
 
 #[tauri::command]
-pub async fn image_thumbnail(app: tauri::AppHandle, file_path: String) -> ThumbnailResult {
-    ffmpeg::thumbnail(Some(&app), &file_path, 48).await
+pub async fn image_thumbnail(file_path: String) -> ThumbnailResult {
+    ffmpeg::thumbnail(&file_path, 48).await
 }
 
 #[tauri::command]
-pub async fn probe_image(app: tauri::AppHandle, file_path: String, ffmpeg_path: Option<String>) -> ProbeImageResult {
-    ffmpeg::probe_image(Some(&app), &file_path, &ffmpeg_path).await
+pub async fn probe_image(file_path: String, ffmpeg_path: Option<String>) -> ProbeImageResult {
+    ffmpeg::probe_image(&file_path, &ffmpeg_path).await
 }
 
 #[cfg(test)]
@@ -278,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn probe_image_returns_error_shape_when_ffprobe_absent() {
-        let r = probe_image(None, "/usr/share/doc/libpng-dev/examples/pngtest.png", &None).await;
+        let r = probe_image("/usr/share/doc/libpng-dev/examples/pngtest.png", &None).await;
         if !r.ok {
             assert!(r.error.is_some());
         } else {
@@ -288,7 +290,7 @@ mod tests {
 
     #[tokio::test]
     async fn image_thumbnail_returns_error_shape_when_ffmpeg_absent() {
-        let r = thumbnail(None, "/usr/share/doc/libpng-dev/examples/pngtest.png", 48).await;
+        let r = thumbnail("/usr/share/doc/libpng-dev/examples/pngtest.png", 48).await;
         if !r.ok {
             assert!(r.error.is_some());
             assert!(r.data_url.is_none());

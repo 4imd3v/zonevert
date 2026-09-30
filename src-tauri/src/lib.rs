@@ -20,7 +20,7 @@ pub fn run() {
                     let registry = state.0.clone();
                     tauri::async_runtime::spawn(async move {
                         let mut map = registry.lock().await;
-                        for (_, pid) in map.drain() {
+                        for (_, (pid, _cancel)) in map.drain() {
                             state::kill_pid(pid);
                         }
                     });
