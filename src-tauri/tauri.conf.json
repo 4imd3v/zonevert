@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Zonevert",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "identifier": "dev.zonevert.app",
     "build": {
         "frontendDist": "../dist",
@@ -39,7 +39,10 @@
         "category": "Utility",
         "linux": {
             "deb": {
-                "depends": ["libgtk-3-0", "libwebkit2gtk-4.1-0"]
+                "depends": [
+                    "libgtk-3-0",
+                    "libwebkit2gtk-4.1-0"
+                ]
             }
         }
     }
