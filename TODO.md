@@ -46,12 +46,14 @@ Verified in audit: drain model was already correct (concurrent reader tasks + `w
 - [x] Post-change: `CI=true pnpm check` 33/33 ✅ (svelte-check + tsx)
 - Skipped: store-level unit tests — the store is a `.svelte.ts` runes module and the tsx harness can't compile it; all flow logic now lives in testable pure modules instead. Add vitest+svelte-plugin in Phase 5 if component-level tests are wanted.
 
-## Phase 3 — Capability / scope / IPC hardening
+## Phase 3 — Capability / scope / IPC hardening ✅ DONE
 
-- [x] Verified `capabilities/default.json` is smallest practical today: main-window-scoped, no `remote` permission, no fs scope permissions (custom protocol feature commented out in Cargo)
-- [ ] Split into explicit files (core / dialog / notification) + `windows` targeting — cosmetic today; do before adding any new permission
-- [ ] Rust path validation for every command taking a path (`save_file` writes arbitrary `file_path` from webview; `convert` args are raw ffmpeg argv). app accepts arbitrary user-selected files by design, but same-input/output collision + traversal rejection are cheap Rust-side wins
-- [ ] Verify history survives `http://tauri.localhost` production-origin + `useHttpsScheme` across an upgrade (localStorage is origin-keyed)
+- [x] **ACL trimmed to the exact used surface**: `core:default` + `core:event:default` + redundant explicit allows → `core:event:allow-listen`, `core:event:allow-unlisten`, `dialog:default`, `notification:default`. Verified by grep that the webview's whole Tauri JS surface is: `invoke` (own commands, not ACL-gated), `event.listen` (log stream + the drag-drop handler inside `getCurrentWebviewWindow().onDragDropEvent`), dialog open/save, notification. No window/webview/app/menu/path/image/tray commands are used, so `core:default` was over-grant. Validated: `cargo check` + full `tauri build --no-bundle` pass; `gen/schemas` regenerated (build artifact, gitignored)
+- [x] **Rust path-validation audit — decision: no new validation** (deliberate, not skipped): `convert` takes raw ffmpeg argv (the app is an ffmpeg console by design — validating argv means reimplementing an ffmpeg parser); `save_file` paths are user-sanctioned via the native save dialog; `file_size`/`check_exists`/`probe_image`/`image_thumbnail` are read-only and user-file-scoped. All failure modes are already contained (tokio::fs::write and Command::spawn return typed errors → `{ok:false, error}`). The real boundary is CSP + no `remote` permission + single main window + no custom-protocol asset feature — all confirmed present. Rust-side argv whitelisting would be security theater that breaks the product
+- [x] **Origin stability verified**: no `useHttpsScheme` in tauri.conf.json → production origin `http://tauri.localhost` (tauri 2.11.6 default); stable across v2 minor upgrades, so localStorage history/settings survive upgrades. The 1.x→2.x origin break is already behind this app
+- [x] Split into one commented file instead of 3 (core/dialog/notification) — splitting is organizational only, Tauri merges identically; revisit when a second window/platform gate is actually needed
+- [x] `gen/schemas` verified gitignored — no stale generated state to commit
+- Skipped: `spawn_blocking` for sync fs metadata commands (µs-class, per-item) — churn without a win
 
 ## Phase 4 — Toolchain alignment
 
