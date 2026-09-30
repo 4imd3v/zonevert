@@ -26,12 +26,6 @@ jobs:
                       command: pnpm run package:macos
 
         runs-on: ${{ matrix.os }}
-        env:
-            # Optional release signing. Empty secrets/vars -> unsigned builds,
-            # which is exactly the documented local/dev behavior.
-            APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
-            WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-            WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
         steps:
             - uses: actions/checkout@v4
@@ -80,6 +74,20 @@ jobs:
 
             - name: Rust tests
               run: cargo test --manifest-path src-tauri/Cargo.toml
+
+            # Signing envs must be *unset* for unsigned fallback: an empty
+            # APPLE_SIGNING_IDENTITY makes tauri try codesign with "" and
+            # fail with "no identity found". GITHUB_ENV only exports when
+            # these steps run.
+            - name: Configure macOS signing identity
+              if: matrix.target == 'macos' && vars.APPLE_SIGNING_IDENTITY != ''
+              run: echo "APPLE_SIGNING_IDENTITY=${{ vars.APPLE_SIGNING_IDENTITY }}" >> "$GITHUB_ENV"
+
+            - name: Configure Windows signing certificate
+              if: matrix.target == 'windows' && secrets.WINDOWS_CERTIFICATE != ''
+              run: |
+                  echo "WINDOWS_CERTIFICATE=${{ secrets.WINDOWS_CERTIFICATE }}" >> "$GITHUB_ENV"
+                  echo "WINDOWS_CERTIFICATE_PASSWORD=${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" >> "$GITHUB_ENV"
 
             - name: Package
               run: ${{ matrix.command }}
