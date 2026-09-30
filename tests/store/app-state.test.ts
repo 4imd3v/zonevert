@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   getPlatform: vi.fn(async () => "linux"),
   onLog: vi.fn(),
   probeFfmpeg: vi.fn(async () => ({ ok: true, version: "ffmpeg test" })),
+  probeEncoders: vi.fn(async () => ["libwebp", "png", "mjpeg"] as string[]),
   selectImages: vi.fn(async () => []),
   selectOutputDir: vi.fn(async () => ""),
   convert: vi.fn(
@@ -254,6 +255,20 @@ describe("log streaming", () => {
     // non-progress stderr lands in the log
     logCallback?.({ jobId: "j1", stream: "stderr", text: "some random stderr" });
     expect(appState.logs.join("")).toContain("some random stderr");
+  });
+});
+
+describe("ffmpeg encoder pre-flight", () => {
+  it("populates encoders at init and warns for a missing encoder", async () => {
+    expect(appState.encoders.has("libwebp")).toBe(true);
+    // webp needs libwebp/libwebp_anim -> present, no warning
+    expect(appState.encoderWarning).toBeNull();
+
+    h.probeEncoders.mockImplementation(async () => ["png", "mjpeg"]);
+    (appState as unknown as { platformReady: boolean }).platformReady = false;
+    await appState.init();
+
+    expect(appState.encoderWarning).toMatch(/no libwebp or libwebp_anim encoder/);
   });
 });
 

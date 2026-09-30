@@ -88,14 +88,14 @@ Verified in audit: drain model was already correct (concurrent reader tasks + `w
 - Not verifiable here: an actual signed macOS build (no Apple Developer account in this env) — the steps are conditional and standard; first real tag cut validates them
 - Skipped: rpm/arch packaging targets (not produced today); Windows Azure Trusted Signing docs (OV-cert path covered by the env vars)
 
-## Phase 7 — Optional
+## Phase 7 — Optional upgrades ✅ DONE
 
-- [ ] FFmpeg version/encoder probe at startup → precise "avif unavailable in your build" errors
-- [ ] Parse optional `elapsed=HH:MM:SS.CC` (wall clock) alongside `time=` (media time) in progress UI
-- [ ] Metadata policy: preserve ICC/orientation default; document that re-encode destroys C2PA provenance
-- [ ] image2 `atomic_writing` for single-image outputs
-- [ ] Replace deprecated `-vsync cfr` usage after FFmpeg-build verification
-- [ ] No `strict=experimental` for user input without opt-in
+- [x] **FFmpeg encoder pre-flight** (the real value of this phase): new `probe_encoders` command (`ffmpeg -hide_banner -encoders` → names; flag-field parser, 2 Rust tests against real output shape). Store loads encoders on init + on every manual ffmpeg probe; OutputPanel shows a `role="alert"` warning when the selected format's encoder is missing. `missingEncoderWarning(format, encoders)` is pure + tested (3 TS tests; any-of groups: webp→libwebp/libwebp_anim, avif→libaom-av1/libsvtav1, jp2→libopenjpeg/jpeg2000 — names verified against local ffmpeg 8.0.1). Native-codec formats (png/tiff/bmp/gif/apng/exr/qoi/targa/mjpeg/jpegls) ship in every build → no warning
+- [x] **`elapsed=` wall-clock parsing** (Apr 2025 FFmpeg patch): `ProgressFrame.elapsed` + regex; builds without it yield null. QueuePanel shows `elapsed HH:MM:SS.CC` when present. 2 parser tests
+- [x] **Metadata policy verified + documented**: app already emits `-map_metadata -1` when "Keep metadata" is off, nothing when on. README documents that re-encoding destroys C2PA provenance
+- [x] **Deprecated flags: verified absent** — no `-vsync cfr`, no `strict=experimental` anywhere in arg construction. Nothing to migrate
+- [ ] `image2 atomic_writing` — DEFERRED deliberately: partial outputs only occur on the SIGKILL-escalation path, and the option needs ffmpeg ≥ 7.0/7.1 (version gate + version plumbing through planConversion costs more than it saves). Add when the FFmpeg compat layer lands
+- [x] Validation: `cargo test` 17/17 ✅, `CI=true pnpm check` (svelte-check + 37 tsx + 11 vitest) ✅, `pnpm tauri build --no-bundle` ✅
 
 ---
 

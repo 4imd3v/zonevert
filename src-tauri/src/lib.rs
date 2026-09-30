@@ -30,6 +30,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::platform,
             commands::probe_ffmpeg,
+            commands::probe_encoders,
             commands::convert,
             commands::cancel,
             commands::check_exists,

@@ -117,6 +117,10 @@ export async function probeFfmpeg(ffmpegPath?: string): Promise<ProbeResult> {
   return invoke<ProbeResult>("probe_ffmpeg", { ffmpegPath });
 }
 
+export async function probeEncoders(ffmpegPath?: string): Promise<string[]> {
+  return invoke<string[]>("probe_encoders", { ffmpegPath });
+}
+
 export async function convert(payload: ConvertPayload): Promise<ConvertResult> {
   return invoke<ConvertResult>("convert", { payload });
 }

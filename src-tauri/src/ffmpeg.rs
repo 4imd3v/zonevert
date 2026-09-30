@@ -219,6 +219,47 @@ pub async fn run<R: tauri::Runtime>(
     }
 }
 
+/// `ffmpeg -hide_banner -encoders` -> encoder name list. Feeds the
+/// frontend pre-flight check so users get "your FFmpeg has no libwebp
+/// encoder" instead of a raw FFmpeg error mid-queue.
+pub async fn encoders(ffmpeg_path: &str) -> Vec<String> {
+    let mut cmd = Command::new(ffmpeg_path);
+    cmd.arg("-hide_banner").arg("-encoders");
+    no_window(&mut cmd);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::null());
+
+    let out = match cmd.output().await {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+    if !out.status.success() {
+        return Vec::new();
+    }
+    parse_encoders(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Parse `ffmpeg -encoders` output. Encoder lines look like
+/// ` V....D libwebp  libwebp WebP image (codec webp)` — token 0 is the
+/// flag field (first char is the stream type V/A/S), token 1 the name.
+/// Section headers ("Encoders:"), separators and blanks don't match.
+fn parse_encoders(stdout: &str) -> Vec<String> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut tokens = line.split_whitespace();
+            let flags = tokens.next()?;
+            let name = tokens.next()?;
+            let is_flag_field = flags.len() >= 4
+                && matches!(flags.as_bytes()[0], b'V' | b'A' | b'S')
+                && flags
+                    .bytes()
+                    .skip(1)
+                    .all(|b| b.is_ascii_uppercase() || b == b'.');
+            is_flag_field.then(|| name.to_owned())
+        })
+        .collect()
+}
+
 /// `ffprobe` width/height probe (replaces ffprobe:run).
 pub async fn probe_image(path: &str, ffmpeg_path: &Option<String>) -> ProbeImageResult {
     let mut cmd = Command::new(resolve_ffmpeg(ffmpeg_path));
@@ -415,6 +456,34 @@ mod tests {
 
         std::env::remove_var("FFMPEG_PATH");
         assert_eq!(resolve_ffmpeg(&None), "ffmpeg");
+    }
+
+    #[test]
+    fn parses_encoder_lines_from_real_output() {
+        let stdout = "\
+Encoders:
+ V....D 012v                Uncompressed 4:2:2 10-bit
+ VF...D exr                  OpenEXR image
+ VF.... libopenjpeg          OpenJPEG JPEG 2000 (codec jpeg2000)
+ V....D libwebp              libwebp WebP image (codec webp)
+ V..... mjpeg_qsv            MJPEG (Intel Quick Sync Video acceleration) (codec mjpeg)
+ VFS..D mjpeg                MJPEG (Motion JPEG)
+ S....D srt                  SubRip subtitle (codec subrip)
+ A....D aac                  AAC (Advanced Audio Coding)
+";
+        assert_eq!(
+            parse_encoders(stdout),
+            vec![
+                "012v", "exr", "libopenjpeg", "libwebp", "mjpeg_qsv", "mjpeg", "srt", "aac"
+            ]
+        );
+    }
+
+    #[test]
+    fn parses_encoders_ignores_noise() {
+        assert!(parse_encoders("").is_empty());
+        assert!(parse_encoders("Encoders:\n-------\n").is_empty());
+        assert!(parse_encoders("ffmpeg version 8.0.1").is_empty());
     }
 
     // ---- child-process integration tests (fake ffmpeg scripts) ----

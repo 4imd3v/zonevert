@@ -134,7 +134,7 @@ describe("queue-state", () => {
 });
 
 describe("applyProgress", () => {
-  const frame = { frame: 42, fps: 30, time: "00:00:01.00", sizeKb: 512 };
+  const frame = { frame: 42, fps: 30, time: "00:00:01.00", sizeKb: 512, elapsed: null };
 
   test("applies only to running items", () => {
     const running = { id: "a", status: "running" } as any;

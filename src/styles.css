@@ -806,6 +806,18 @@ svg {
   letter-spacing: 0.02em;
 }
 
+.encoder-warning {
+  display: block;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-md, 6px);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 .field-hint {
   display: block;
   margin-top: 2px;

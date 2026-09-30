@@ -14,12 +14,13 @@
   let showRetry = $derived(appState.hasFailed && !appState.isConverting);
   let convertLabel = $derived(appState.isConverting ? "Converting" : "Convert");
 
-  function formatItemProgress(item: { status: string; progress?: { frame: number | null; fps: number | null; time: string | null } }): string {
+  function formatItemProgress(item: { status: string; progress?: { frame: number | null; fps: number | null; time: string | null; elapsed: string | null } }): string {
     if (item.status !== "running" || !item.progress) return "";
     const parts: string[] = [];
     if (item.progress.frame !== null) parts.push(`frame ${item.progress.frame}`);
     if (item.progress.fps !== null) parts.push(`${item.progress.fps} fps`);
     if (item.progress.time) parts.push(item.progress.time);
+    if (item.progress.elapsed) parts.push(`elapsed ${item.progress.elapsed}`);
     return parts.join(" · ");
   }
 </script>

@@ -113,6 +113,21 @@ conversion:
 Install FFmpeg through your package manager or download from
 [ffmpeg.org](https://ffmpeg.org/download.html).
 
+### Encoder availability
+
+The app probes `ffmpeg -encoders` at startup and warns when your build lacks
+an optional encoder for the selected format (the default, **webp**, needs
+`libwebp`; `avif` needs `libaom-av1` or `libsvtav1`; `jp2` needs
+`libopenjpeg` — commonly missing from minimal distro builds). All other
+supported formats use codecs built into every FFmpeg build.
+
+### Metadata & provenance
+
+Unchecking "Keep metadata" passes `-map_metadata -1`, which strips metadata
+from the output. Note that any conversion is a re-encode: C2PA content
+credentials are **destroyed by re-encoding** even for "clean" files, so
+converted outputs carry no provenance from the source.
+
 ### Supported output formats
 
 `webp`, `jpg`, `png`, `avif`, `tiff`, `bmp`, `gif`, `apng`, `jp2` (JPEG 2000),

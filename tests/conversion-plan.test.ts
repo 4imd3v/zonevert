@@ -7,6 +7,7 @@ import {
   formatCommand,
   parseArgs,
   planConversion,
+  missingEncoderWarning,
 } from "../src/lib/logic/conversion-plan";
 
 describe("conversion-plan", () => {
@@ -163,4 +164,32 @@ describe("conversion-plan", () => {
     assert.equal(args.length, 1);
     assert.equal(args[0].length, 8000);
   });
+
+describe("missingEncoderWarning", () => {
+  const full = ["libwebp", "libaom-av1", "libopenjpeg", "png", "mjpeg"];
+
+  test("warns when the format's encoder is missing", () => {
+    const warning = missingEncoderWarning("webp", ["png", "mjpeg"]);
+    assert.match(warning!, /no libwebp or libwebp_anim encoder/);
+    assert.match(warning!, /webp output will fail/);
+  });
+
+  test("accepts any encoder from an any-of group", () => {
+    assert.equal(missingEncoderWarning("webp", full), null);
+    assert.equal(missingEncoderWarning("webp", ["libwebp_anim"]), null);
+    assert.equal(missingEncoderWarning("avif", full), null);
+    assert.equal(missingEncoderWarning("avif", ["libsvtav1"]), null);
+    assert.equal(missingEncoderWarning("jp2", full), null);
+    assert.equal(missingEncoderWarning("jp2", ["jpeg2000"]), null);
+  });
+
+  test("stays silent for formats with native encoders and for unknown input", () => {
+    assert.equal(missingEncoderWarning("png", full), null);
+    assert.equal(missingEncoderWarning("tiff", full), null);
+    assert.equal(missingEncoderWarning("gif", []), null);
+    assert.equal(missingEncoderWarning("webp", []), null);
+    assert.equal(missingEncoderWarning("webp", null), null);
+    assert.equal(missingEncoderWarning("nope", full), null);
+  });
+});
 });

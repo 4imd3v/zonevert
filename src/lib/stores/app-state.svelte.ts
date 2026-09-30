@@ -2,6 +2,7 @@ import {
   getPlatform,
   onLog,
   probeFfmpeg as probeFfmpegBinding,
+  probeEncoders,
   selectImages,
   selectOutputDir,
   convert,
@@ -20,6 +21,7 @@ import {
   createConversionIntent,
   planConversion,
   formatCommand,
+  missingEncoderWarning,
   PRESET_DEFAULTS,
   type ConversionIntent,
 } from "$lib/logic/conversion-plan";
@@ -129,6 +131,7 @@ class AppState {
   // ---- ffmpeg status ----
   ffmpegStatus = $state<"idle" | "ok" | "warn">("idle");
   ffmpegVersion = $state("");
+  encoders = $state.raw<Set<string>>(new Set());
 
   // ---- theme ----
   theme = $state<"light" | "dark">("light");
@@ -148,14 +151,7 @@ class AppState {
 
     this.logUnlisten = await onLog((entry) => this.handleLog(entry));
 
-    const probe = await probeFfmpegBinding(this.settings.ffmpegPath);
-    if (probe.ok) {
-      this.ffmpegStatus = "ok";
-      this.ffmpegVersion = probe.version || "FFmpeg ready";
-    } else {
-      this.ffmpegStatus = "warn";
-      this.appendLog(`FFmpeg probe failed: ${probe.error || "Unknown error"}\n`);
-    }
+    await this.probeFfmpeg();
   }
 
   destroy() {
@@ -311,14 +307,20 @@ class AppState {
 
   // ---- ffmpeg probe ----
 
+  get encoderWarning(): string | null {
+    return missingEncoderWarning(this.settings.format, this.encoders);
+  }
+
   async probeFfmpeg() {
     this.ffmpegStatus = "idle";
     const result = await probeFfmpegBinding(this.settings.ffmpegPath);
     if (result.ok) {
       this.ffmpegStatus = "ok";
       this.ffmpegVersion = result.version || "FFmpeg ready";
+      this.encoders = new Set(await probeEncoders(this.settings.ffmpegPath));
     } else {
       this.ffmpegStatus = "warn";
+      this.encoders = new Set();
       this.appendLog(`FFmpeg probe failed: ${result.error || "Unknown error"}\n`);
     }
   }

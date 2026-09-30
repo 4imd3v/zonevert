@@ -6,6 +6,9 @@ export interface ProgressFrame {
   fps: number | null;
   time: string | null;
   sizeKb: number | null;
+  // wall-clock elapsed, only emitted by FFmpeg builds with the
+  // 2025-04 print_report patch — null on older builds.
+  elapsed: string | null;
 }
 
 // FFmpeg stderr progress lines look like:
@@ -14,6 +17,7 @@ const frameRegex = /frame=\s*(\d+)/;
 const fpsRegex = /fps=\s*(\d+\.?\d*)/;
 const timeRegex = /time=\s*(\d{2}:\d{2}:\d{2}\.\d{2})/;
 const sizeRegex = /size=\s*(\d+)kB/;
+const elapsedRegex = /elapsed=\s*(\d{2}:\d{2}:\d{2}\.\d{2})/;
 
 export function parseLine(line: unknown): ProgressFrame | null {
   const text = String(line || "");
@@ -21,6 +25,7 @@ export function parseLine(line: unknown): ProgressFrame | null {
   const fpsMatch = text.match(fpsRegex);
   const timeMatch = text.match(timeRegex);
   const sizeMatch = text.match(sizeRegex);
+  const elapsedMatch = text.match(elapsedRegex);
 
   if (!frameMatch && !fpsMatch && !timeMatch && !sizeMatch) {
     return null;
@@ -31,6 +36,7 @@ export function parseLine(line: unknown): ProgressFrame | null {
     fps: fpsMatch ? Number.parseFloat(fpsMatch[1]) : null,
     time: timeMatch ? timeMatch[1] : null,
     sizeKb: sizeMatch ? Number.parseInt(sizeMatch[1], 10) : null,
+    elapsed: elapsedMatch ? elapsedMatch[1] : null,
   };
 }
 

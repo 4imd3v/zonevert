@@ -210,6 +210,11 @@ pub fn file_size(path: String) -> FileSizeResult {
 }
 
 #[tauri::command]
+pub async fn probe_encoders(ffmpeg_path: Option<String>) -> Vec<String> {
+    ffmpeg::encoders(&ffmpeg::resolve_ffmpeg(&ffmpeg_path)).await
+}
+
+#[tauri::command]
 pub async fn save_file(file_path: String, content: String) -> SaveResult {
     match tokio::fs::write(&file_path, content).await {
         Ok(_) => SaveResult {

@@ -10,7 +10,16 @@ describe("progress-parser", () => {
       fps: 45,
       time: "00:00:05.12",
       sizeKb: 1024,
+      elapsed: null,
     });
+  });
+
+  test("parses elapsed wall-clock when the build emits it", () => {
+    const result = parseLine(
+      "frame=  60 fps= 30 q=28.0 size=     256kB time=00:00:02.00 bitrate=1024.0kbits/s elapsed=00:00:07.40 speed=0.27x",
+    );
+    assert.equal(result?.time, "00:00:02.00");
+    assert.equal(result?.elapsed, "00:00:07.40");
   });
 
   test("parses partial progress with only frame and fps", () => {

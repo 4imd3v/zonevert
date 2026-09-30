@@ -100,6 +100,38 @@ const encoderArgs: Record<
   jls: (quality) => ["-c:v", "jpegls", "-q:v", String(quality)],
 };
 
+/**
+ * Encoders each format needs, grouped by "any-of" alternatives — mirrors
+ * the encoderArgs map above. Only formats whose encoders are commonly
+ * absent from distro FFmpeg builds are listed; native codecs (png, tiff,
+ * bmp, gif, apng, exr, qoi, targa, mjpeg, jpegls) ship everywhere.
+ */
+const FORMAT_ENCODER_GROUPS: Record<string, string[][]> = {
+  webp: [["libwebp", "libwebp_anim"]],
+  avif: [["libaom-av1", "libsvtav1"]],
+  jp2: [["libopenjpeg", "jpeg2000"]],
+};
+
+/**
+ * Pre-flight warning when the probed FFmpeg build lacks the encoder for a
+ * format. Returns null when the format is fine, when it needs no optional
+ * encoder, or when the probe returned nothing (ffmpeg missing is reported
+ * separately by the app's ffmpeg status).
+ */
+export function missingEncoderWarning(
+  format: string,
+  encoders: Iterable<string> | null | undefined,
+): string | null {
+  const groups = FORMAT_ENCODER_GROUPS[format];
+  if (!groups || !encoders) return null;
+  const have = new Set(encoders);
+  if (have.size === 0) return null; // probe failed — don't cry wolf
+  const missing = groups.filter((group) => !group.some((name) => have.has(name)));
+  if (!missing.length) return null;
+  const needed = missing.map((group) => group.join(" or ")).join(" and ");
+  return `Your FFmpeg build has no ${needed} encoder — ${format} output will fail.`;
+}
+
 export function createConversionIntent(options: CreateIntentOptions = {}): ConversionIntent {
   const preset = normalizePreset(options.preset);
   const quality = normalizeQuality(options.quality, PRESET_DEFAULTS[preset].quality);

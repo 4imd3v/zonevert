@@ -13,6 +13,7 @@
 
   let folderText = $derived(appState.outputDir || "Same folder as each source");
   let qualityHint = $derived(QUALITY_HINTS[appState.settings.format] ?? "");
+  let encoderWarning = $derived(appState.encoderWarning);
 </script>
 
 <section class="panel" aria-labelledby="outputTitle">
@@ -64,6 +65,10 @@
       <small class="quality-hint">{qualityHint}</small>
     {/if}
   </label>
+
+  {#if encoderWarning}
+    <p class="encoder-warning" role="alert">{encoderWarning}</p>
+  {/if}
 
   <div class="toggle-row">
     <label class="toggle">
