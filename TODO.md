@@ -65,12 +65,16 @@ Verified in audit: drain model was already correct (concurrent reader tasks + `w
 - [x] Validation: `cargo test` 15/15 ✅, `CI=true pnpm check` 33/33 ✅, full `pnpm tauri build --no-bundle` on the 2.12 stack ✅
 - Skipped: edition 2024 for our crate (no downstream requirement; 2021 is fine), explicit `dtolnay/rust-toolchain` pin in CI (runner stable is already ≥ MSRV and only moves forward)
 
-## Phase 5 — Frontend modernization
+## Phase 5 — Frontend modernization ✅ DONE
 
-- [ ] Grep + fix legacy Svelte: `on:` modifiers, `createEventDispatcher`, duplicate event attrs, `$:` reactivity
-- [ ] Runes-first components; callback props; actions for capture/passive; stores only where global
-- [ ] Replace hand-mirrored `bindings.ts` with generated types (Specta optional — do **not** copy AGPL template code)
-- [ ] UI tests: queue table, progress title, error toasts, dialog/notification failures, persistent history
+- [x] **Legacy Svelte audit: ZERO legacy patterns** — grep across all 14 components: no `on:` directives, no `createEventDispatcher`, no `export let`, no `$:` statements, no `<slot>`, no `beforeUpdate`/`afterUpdate`. All 11 components use `$props`; the runes migration was done by the earlier port. Nothing to fix — verified, not assumed
+- [x] **Type generation: REJECTED (Specta)** — would peg the app to two pre-release crates (`specta` 2.0.0-rc.25 + `tauri-specta` 2.0.0-rc.25, both still RC-only) to guard drift on a frozen 9-struct surface with exactly one consumer. Revisit trigger: a second frontend consumer OR when struct churn actually starts. Recorded as accepted debt
+- [x] **tsconfig now typechecks `tests/**`** (was src-only): surfaced a real latent bug — `conversion-plan.test.ts` passed `width: "1200"` (string) while the intent type said number. Fixed honestly by widening `createConversionIntent`/`buildResizeFilter` width/height to `number | string` (runtime `positiveInteger(unknown)` coercion was deliberate input validation at a trust boundary)
+- [x] **vitest store/UI-flow harness** (the Phase 2 blocker): `vitest.config.mts` with the existing svelte plugin (compiles `.svelte.ts` runes) + jsdom + `$lib` alias; `tests/store/` (kept out of the tsx `tests/*.test.ts` glob so the two harnesses don't collide — node:test for pure logic, vitest for store/DOM flows)
+- [x] **10 store tests** (`tests/store/app-state.test.ts`, Tauri API mocked, real queue-state + logic modules): sequential run + title transitions + size summary + history persistence + notification; concurrency peak = setting (3 of 6); cancel current job (drops rest of queue, no history for canceled runs); stop-after-current; retry-failed re-runs only failed; skip collision mode; progress frames attach to running items only (post-terminal dropped); rejected `convert()` invoke fails the job without stranding the queue; history cap 20 on load; settings restore merges over defaults
+- [x] `pnpm check` = svelte-check + tsx (33) + vitest (10) — CI gets all three via the existing workflow
+- Validated: `CI=true pnpm check` ✅, `cargo test` 15/15 ✅
+- Skipped: component-render tests (testing-library) — store flows carry the logic; add when a component's own behavior needs guarding
 
 ## Phase 6 — Release / signing / licensing
 

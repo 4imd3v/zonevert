@@ -50,8 +50,8 @@ interface CreateIntentOptions {
   outputDir?: string;
   ffmpegPath?: string;
   resizeMode?: string;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
   naming?: Partial<NamingOptions>;
   rotation?: string;
   globalArgsText?: string;
@@ -181,8 +181,8 @@ export function buildFilterGraph(intent: ConversionIntent): string {
 
 export function buildResizeFilter(resize: {
   mode?: string;
-  width?: number;
-  height?: number;
+  width?: number | string;
+  height?: number | string;
 }): string {
   const mode = normalizeResizeMode(resize?.mode);
   const width = positiveInteger(resize?.width);
