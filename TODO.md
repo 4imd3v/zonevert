@@ -34,12 +34,17 @@ Verified in audit: drain model was already correct (concurrent reader tasks + `w
 - [x] Post-change: `cargo test` 15/15 ✅, `CI=true pnpm check` 26/26 ✅, no warnings
 - Skipped: structured progress events (frontend protocol works as-is; `elapsed=` parsing deferred to Phase 7). Add when the event contract is reworked anyway.
 
-## Phase 2 — State / queue / concurrency
+## Phase 2 — State / queue / concurrency ✅ DONE
 
 - [x] Audit done in Phase 0/1: `state.rs` is a plain `tokio::Mutex<HashMap>` — no guard held across await, no async mutex over plain data beyond the (now tiny) registry
-- [ ] Confirm `spawn_blocking` or async fs for file enumeration in frontend-triggered paths (commands `check_exists`/`file_size` are sync `std::fs` — brief, acceptable; revisit only if large-dir enumeration moves to Rust)
-- [ ] Extend `queue-state.test.ts`: cancel while queued/running, retry, failure, thumbnail concurrency cap, progress event ordering
-- [ ] Verify no progress events after terminal state / app drop
+- [x] Sync fs commands (`check_exists`/`file_size`) are local metadata-only calls (µs) called per-item — left sync, spawn_blocking would be churn without a win
+- [x] Extracted `runPool(items, concurrency, worker, onSkipped, shouldStop)` into logic/queue-state.ts — dedupes the two hand-rolled worker pools in the store (thumbnails + conversions); sequential mode is now just concurrency=1 through the same path (the old if/else + separate pool method are gone)
+- [x] `convert()` invoke wrapped in try/catch → IPC failure now fails that job instead of stranding the queue with `isConverting` stuck true
+- [x] Thumbnail overwrite race fixed: per-item `$state` assignment (concurrent add-folder calls used to overwrite each other's map with a stale base); thumbnails now also display progressively
+- [x] Progress-after-terminal guard moved out of the store into tested `applyProgress()` (applies only to `running` items). Side effect: trailing ffmpeg stderr that isn't a progress line is now appended to the log after completion (old code dropped all post-terminal output)
+- [x] Tests: 7 new in tests/queue-state.test.ts — runPool concurrency cap (peak=3), sequential order at 1, cancel drain via onSkipped, empty-list, applyProgress running-only + unknown-id, cancel-wins-over-success
+- [x] Post-change: `CI=true pnpm check` 33/33 ✅ (svelte-check + tsx)
+- Skipped: store-level unit tests — the store is a `.svelte.ts` runes module and the tsx harness can't compile it; all flow logic now lives in testable pure modules instead. Add vitest+svelte-plugin in Phase 5 if component-level tests are wanted.
 
 ## Phase 3 — Capability / scope / IPC hardening
 

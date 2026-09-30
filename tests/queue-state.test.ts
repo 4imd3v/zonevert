@@ -1,12 +1,14 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyProgress,
   createQueue,
   markResult,
   markRunning,
   markSkipped,
   resetFailed,
   resolveCollisions,
+  runPool,
   statusLabel,
   summarizeQueue,
 } from "../src/lib/logic/queue-state";
@@ -120,5 +122,101 @@ describe("queue-state", () => {
     const reset = resetFailed(queue);
     assert.equal(reset.length, 2);
     assert.deepEqual(queue.map((item: any) => item.status), ["done", "pending", "pending", "pending"]);
+  });
+
+  test("cancellation wins even when the conversion reported success", () => {
+    const queue = [{ status: "running" }] as any[];
+
+    markResult(queue[0], { ok: true }, true);
+
+    assert.equal(queue[0].status, "canceled");
+  });
+});
+
+describe("applyProgress", () => {
+  const frame = { frame: 42, fps: 30, time: "00:00:01.00", sizeKb: 512 };
+
+  test("applies only to running items", () => {
+    const running = { id: "a", status: "running" } as any;
+    const done = { id: "b", status: "done" } as any;
+    const queue = [running, done];
+
+    assert.equal(applyProgress(queue, "a", frame), true);
+    assert.deepEqual(running.progress, frame);
+  });
+
+  test("drops frames for finished jobs and unknown ids", () => {
+    const done = { id: "b", status: "done" } as any;
+    const queue = [done];
+
+    assert.equal(applyProgress(queue, "b", frame), false);
+    assert.equal(applyProgress(queue, "missing", frame), false);
+    assert.equal(done.progress, undefined);
+  });
+});
+
+describe("runPool", () => {
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  test("caps in-flight workers at the concurrency limit", async () => {
+    let active = 0;
+    let peak = 0;
+
+    await runPool([1, 2, 3, 4, 5, 6], 3, async (n) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await sleep(10);
+      active -= 1;
+    });
+
+    assert.equal(peak, 3, `expected peak concurrency 3, got ${peak}`);
+  });
+
+  test("runs sequentially at concurrency 1, preserving order", async () => {
+    let active = 0;
+    let peak = 0;
+    const order: number[] = [];
+
+    await runPool([1, 2, 3], 1, async (n) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await sleep(5);
+      order.push(n);
+      active -= 1;
+    });
+
+    assert.equal(peak, 1);
+    assert.deepEqual(order, [1, 2, 3]);
+  });
+
+  test("drains remaining items through onSkipped once stopped", async () => {
+    const processed: number[] = [];
+    const skipped: number[] = [];
+    let stop = false;
+
+    await runPool(
+      [1, 2, 3, 4],
+      2,
+      async (n) => {
+        processed.push(n);
+        if (processed.length === 2) stop = true;
+        await sleep(5);
+      },
+      (n) => skipped.push(n),
+      () => stop,
+    );
+
+    assert.deepEqual(processed.sort(), [1, 2]);
+    assert.deepEqual(skipped.sort(), [3, 4]);
+  });
+
+  test("empty item list completes without calling the worker", async () => {
+    let called = 0;
+
+    await runPool([], 4, async () => {
+      called += 1;
+    });
+
+    assert.equal(called, 0);
   });
 });

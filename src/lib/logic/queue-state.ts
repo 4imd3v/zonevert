@@ -167,6 +167,51 @@ export function markSkipped(item: QueueItem): QueueItem {
   return item;
 }
 
+/**
+ * Attach a progress frame only to a *running* item. Frames that arrive after
+ * a job reached a terminal state (or for an unknown job) are dropped.
+ * Returns true if the frame was applied (caller reassigns for reactivity).
+ */
+export function applyProgress(
+  queue: QueueItem[],
+  jobId: string,
+  frame: ProgressFrame,
+): boolean {
+  const item = queue.find((q) => q.id === jobId);
+  if (!item || item.status !== "running") return false;
+  item.progress = frame;
+  return true;
+}
+
+/**
+ * Run `worker` over `items` with at most `concurrency` in flight. Shared by
+ * the thumbnail loader and the conversion queue. Once `shouldStop()` returns
+ * true, remaining items are drained through `onSkipped` (e.g. marked
+ * canceled) and every worker exits.
+ */
+export async function runPool<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+  onSkipped?: (item: T) => void,
+  shouldStop: () => boolean = () => false,
+): Promise<void> {
+  const queue = [...items];
+  const lanes = Math.max(1, Math.min(concurrency, queue.length || 1));
+  const workers = Array.from({ length: lanes }, async () => {
+    while (queue.length) {
+      if (shouldStop()) {
+        for (const skipped of queue.splice(0)) onSkipped?.(skipped);
+        return;
+      }
+      const item = queue.shift();
+      if (!item) return;
+      await worker(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export function resetFailed(queue: QueueItem[]): QueueItem[] {
   const reset: QueueItem[] = [];
   for (const item of queue) {

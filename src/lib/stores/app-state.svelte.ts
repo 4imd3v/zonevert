@@ -12,6 +12,7 @@ import {
   probeImage,
   saveFile,
   showNotification,
+  type ConvertResult,
   type LogEntry,
   type SelectedImage,
 } from "$lib/bindings";
@@ -30,6 +31,8 @@ import {
   markCanceled,
   markSkipped,
   resetFailed,
+  applyProgress,
+  runPool,
   type QueueItem,
   type QueueSummary,
 } from "$lib/logic/queue-state";
@@ -281,32 +284,22 @@ class AppState {
   }
 
   private async loadThumbnailsAndMeta() {
-    const thumbs = new Map(this.thumbnails);
-    const meta = new Map(this.imageMeta);
-    const concurrency = 4;
-    const files = [...this.files];
-    const workers: Promise<void>[] = [];
-
-    const worker = async () => {
-      while (files.length) {
-        const file = files.shift();
-        if (!file) return;
-        const [thumb, dims] = await Promise.all([
-          getThumbnail(file.path),
-          probeImage(file.path, this.settings.ffmpegPath),
-        ]);
-        if (thumb.ok && thumb.dataUrl) thumbs.set(file.path, thumb.dataUrl);
-        if (dims.ok && dims.width && dims.height) {
-          meta.set(file.path, `${dims.width}×${dims.height}`);
-        }
+    // Assign per item as each completes: concurrent calls can't overwrite
+    // each other's partial results, and thumbnails appear progressively.
+    const worker = async (file: SelectedImage) => {
+      const [thumb, dims] = await Promise.all([
+        getThumbnail(file.path),
+        probeImage(file.path, this.settings.ffmpegPath),
+      ]);
+      if (thumb.ok && thumb.dataUrl) {
+        this.thumbnails = new Map(this.thumbnails).set(file.path, thumb.dataUrl);
+      }
+      if (dims.ok && dims.width && dims.height) {
+        this.imageMeta = new Map(this.imageMeta).set(file.path, `${dims.width}×${dims.height}`);
       }
     };
 
-    for (let i = 0; i < concurrency; i++) workers.push(worker());
-    await Promise.all(workers);
-
-    this.thumbnails = thumbs;
-    this.imageMeta = meta;
+    await runPool([...this.files], 4, worker);
   }
 
   // ---- output dir ----
@@ -378,17 +371,15 @@ class AppState {
       `Starting ${runnable.length} conversion${runnable.length === 1 ? "" : "s"}${concurrency > 1 ? ` (${concurrency} parallel)` : ""}.\n`,
     );
 
-    if (concurrency > 1) {
-      await this.runConversionPool(runnable, intent, concurrency);
-    } else {
-      for (const item of runnable) {
-        if (this.cancelRequested || this.stopAfterCurrent) {
-          markCanceled(item);
-          continue;
-        }
-        await this.runConversionItem(item, intent);
-      }
-    }
+    // One pool for both sequential (concurrency=1) and parallel runs: on
+    // cancel/stop-after-current, not-yet-started items are marked canceled.
+    await runPool(
+      runnable,
+      concurrency,
+      (item) => this.runConversionItem(item, intent),
+      (item) => markCanceled(item),
+      () => this.cancelRequested || this.stopAfterCurrent,
+    );
 
     this.isConverting = false;
     const wasCanceled = this.cancelRequested;
@@ -403,31 +394,6 @@ class AppState {
       this.computeSizeSummary();
       if (!retry) this.saveHistoryEntry();
     }
-  }
-
-  private async runConversionPool(
-    items: QueueItem[],
-    intent: ConversionIntent,
-    concurrency: number,
-  ) {
-    const queue = [...items];
-    const workers: Promise<void>[] = [];
-
-    const worker = async () => {
-      while (queue.length) {
-        if (this.cancelRequested || this.stopAfterCurrent) {
-          const skipped = queue.splice(0);
-          for (const item of skipped) markCanceled(item);
-          return;
-        }
-        const item = queue.shift();
-        if (!item) return;
-        await this.runConversionItem(item, intent);
-      }
-    };
-
-    for (let i = 0; i < concurrency; i++) workers.push(worker());
-    await Promise.all(workers);
   }
 
   private async runConversionItem(item: QueueItem, intent: ConversionIntent) {
@@ -446,11 +412,21 @@ class AppState {
     );
 
     const startTime = Date.now();
-    const result = await convert({
-      jobId: item.id,
-      ffmpegPath: intent.ffmpegPath,
-      args: item.args,
-    });
+    let result: ConvertResult;
+    try {
+      result = await convert({
+        jobId: item.id,
+        ffmpegPath: intent.ffmpegPath,
+        args: item.args,
+      });
+    } catch (error) {
+      // An IPC-layer failure must fail this job, not strand the queue with
+      // isConverting stuck true forever.
+      result = {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
 
     if (item.status !== "skipped") {
       const elapsed = Date.now() - startTime;
@@ -564,18 +540,10 @@ class AppState {
   // ---- log streaming ----
 
   private handleLog(entry: LogEntry) {
-    const isRunning = this.queue.some(
-      (item) => item.id === entry.jobId && item.status === "running",
-    );
-    if (!isRunning) return;
-
     if (entry.stream === "stderr") {
       const progress = parseStderr(entry.text);
       if (progress) {
-        const item = this.queue.find((q) => q.id === entry.jobId);
-        if (item) {
-          item.progress = progress;
-          // trigger reactivity — reassign queue entry
+        if (applyProgress(this.queue, entry.jobId, progress)) {
           this.queue = [...this.queue];
         }
         return;
