@@ -55,13 +55,15 @@ Verified in audit: drain model was already correct (concurrent reader tasks + `w
 - [x] `gen/schemas` verified gitignored — no stale generated state to commit
 - Skipped: `spawn_blocking` for sync fs metadata commands (µs-class, per-item) — churn without a win
 
-## Phase 4 — Toolchain alignment
+## Phase 4 — Toolchain alignment ✅ DONE
 
-- [ ] Decision pending: Tauri core **2.12.0** (Rust 1.90, edition 2024, Win7 dropped, released Sep 26 2026) vs. pinned pre-2.12 line — env already runs Rust 1.98.1
-- [ ] If 2.12: edition 2024, CI Rust ≥1.90, `cargo update` tauri/tray/muda/objc2
-- [ ] README Rust requirement ≥1.77.2 → real target (only after decision)
-- [ ] JS already on `@tauri-apps/api` ^2.11.1 + plugins — remainder is verifying pairing, not bumping
-- [ ] CI matrix: Linux (`webkit2gtk-4.1` + `libgtk-3`), Windows (WebView2), macOS
+- [x] **Decision: adopt Tauri 2.12.0** (released Sep 26 2026). Rationale: security fixes + longevity; env Rust is 1.98.1 ≥ MSRV 1.90; Win7 drop irrelevant (we already require WebView2 / webkit2gtk-4.1); tauri's own edition-2024 move does NOT force downstream editions, so the crate stays edition 2021
+- [x] Rust: `rust-version` 1.77.2 → 1.90; `cargo update` tauri/tauri-build/plugins → tauri 2.12.0, tauri-runtime 2.12.0, tauri-plugin-dialog 2.8.0, tauri-plugin-notification 2.5.0 (wry 0.57, webview2-com 0.39, windows 0.62 pulled in). No compile breaks; no deprecation hits (we don't use `InvokeMessage::state` etc.)
+- [x] JS pairing: `@tauri-apps/api` ^2.12.0, `plugin-dialog` ~2.8.0, `plugin-notification` ~2.5.0, `@tauri-apps/cli` ^2.12.0
+- [x] README: Rust requirement → stable ≥ 1.90 (per Tauri 2.12 MSRV)
+- [x] CI gap fixed: release.yml now runs `cargo test` (Linux/Win/macOS matrix already had WebView2 + webkit2gtk-4.1 deps — the matrix item was already satisfied)
+- [x] Validation: `cargo test` 15/15 ✅, `CI=true pnpm check` 33/33 ✅, full `pnpm tauri build --no-bundle` on the 2.12 stack ✅
+- Skipped: edition 2024 for our crate (no downstream requirement; 2021 is fine), explicit `dtolnay/rust-toolchain` pin in CI (runner stable is already ≥ MSRV and only moves forward)
 
 ## Phase 5 — Frontend modernization
 

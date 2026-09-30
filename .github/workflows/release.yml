@@ -57,6 +57,9 @@ jobs:
             - name: Typecheck
               run: pnpm run typecheck
 
+            - name: Rust tests
+              run: cargo test --manifest-path src-tauri/Cargo.toml
+
             - name: Package
               run: ${{ matrix.command }}
 

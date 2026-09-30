@@ -25,13 +25,13 @@
         "postversion": "git status --short"
     },
     "dependencies": {
-        "@tauri-apps/api": "^2.11.1",
-        "@tauri-apps/plugin-dialog": "~2.7.1",
-        "@tauri-apps/plugin-notification": "~2.3.3"
+        "@tauri-apps/api": "^2.12.0",
+        "@tauri-apps/plugin-dialog": "~2.8.0",
+        "@tauri-apps/plugin-notification": "~2.5.0"
     },
     "devDependencies": {
         "@sveltejs/vite-plugin-svelte": "^7.1.2",
-        "@tauri-apps/cli": "^2.11.4",
+        "@tauri-apps/cli": "^2.12.0",
         "@tsconfig/svelte": "^5.0.8",
         "@types/node": "^24.0.0",
         "svelte": "^5.56.4",

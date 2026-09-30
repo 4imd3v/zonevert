@@ -5,7 +5,7 @@ Zonevert is a cross-platform (Windows, Linux, macOS) desktop UI for batch image 
 ## Requirements
 
 - Node.js and pnpm
-- Rust toolchain (stable ≥ 1.77.2)
+- Rust toolchain (stable ≥ 1.90, per Tauri 2.12's MSRV)
 - System WebView: WebView2 on Windows, `webkit2gtk-4.1` + `libgtk-3` on Linux
 - **FFmpeg installed on your system** (see [FFmpeg](#ffmpeg) below). A custom
   FFmpeg path can be entered in the app's Advanced panel, or set via the
