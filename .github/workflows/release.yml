@@ -26,6 +26,12 @@ jobs:
                       command: pnpm run package:macos
 
         runs-on: ${{ matrix.os }}
+        env:
+            # Optional release signing. Empty secrets/vars -> unsigned builds,
+            # which is exactly the documented local/dev behavior.
+            APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+            WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+            WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
         steps:
             - uses: actions/checkout@v4
@@ -51,6 +57,21 @@ jobs:
             - name: Install
               run: pnpm install --frozen-lockfile
 
+            - name: Import macOS signing certificate
+              if: matrix.target == 'macos' && env.APPLE_CERTIFICATE != ''
+              env:
+                  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+              run: |
+                  CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+                  KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+                  echo -n "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+                  security create-keychain -p "" "$KEYCHAIN_PATH"
+                  security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+                  security unlock-keychain -p "" "$KEYCHAIN_PATH"
+                  security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+                  security list-keychain -d user -s "$KEYCHAIN_PATH"
+
             - name: Check
               run: pnpm run check
 
@@ -62,6 +83,17 @@ jobs:
 
             - name: Package
               run: ${{ matrix.command }}
+
+            - name: Notarize and staple macOS app
+              if: matrix.target == 'macos' && env.APPLE_ID != ''
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  DMG="$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
+                  xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+                  xcrun stapler staple "$DMG"
 
             - uses: actions/upload-artifact@v4
               with:

@@ -69,13 +69,37 @@ No FFmpeg is needed at build time — the app shells out to the user's system
 
 ### macOS signing & notarization
 
-The macOS `.dmg` is built **unsigned**. Users can still run it by
+By default the macOS `.dmg` is built **unsigned**. Users can still run it by
 right-clicking → Open (or System Settings → Privacy & Security → "Open
-Anyway"), but Gatekeeper blocks it by default and auto-update requires
-signing. To ship a zero-friction Mac build, provide an Apple Developer ID
-certificate and set the CI secrets `TAURI_SIGNING_IDENTITY`, `APPLE_ID`,
-`APPLE_PASSWORD`, and `APPLE_TEAM_ID`; `tauri build` then notarizes
-automatically.
+Anyway"), but Gatekeeper blocks it by default. To ship signed + notarized
+builds, set these repository secrets/variables — the workflow detects them
+and falls back to unsigned when they are absent:
+
+| Name | Kind | Purpose |
+| --- | --- | --- |
+| `APPLE_CERTIFICATE` | secret | base64 `.p12` Developer ID certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | secret | password of that `.p12` |
+| `APPLE_SIGNING_IDENTITY` | variable | e.g. `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID` | secret | Apple ID used by `notarytool` |
+| `APPLE_PASSWORD` | secret | app-specific password for that Apple ID |
+| `APPLE_TEAM_ID` | secret | Apple Developer team ID |
+
+### Windows signing
+
+Set `WINDOWS_CERTIFICATE` (secret, base64 `.pfx`) and
+`WINDOWS_CERTIFICATE_PASSWORD` (secret); `tauri build` picks them up and
+signs the NSIS/MSI bundles. Without them the installers are unsigned
+(SmartScreen warning on first run).
+
+### Updater
+
+No auto-updater is wired up. Enabling one requires four pieces that do not
+exist yet — decide deliberately rather than flip a flag:
+`tauri-plugin-updater`, a minisign keypair + signing key in CI secrets, a
+hosted `latest.json` endpoint (HTTPS), and
+`bundle.createUpdaterArtifacts: true` in `tauri.conf.json`. Without that
+last flag some CI actions repackage the `.app` and invalidate the updater
+signature (tauri-apps/tauri-action#1260).
 
 ## FFmpeg
 

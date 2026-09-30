@@ -36,6 +36,11 @@
             "icons/icon.icns",
             "icons/icon.ico"
         ],
-        "category": "Utility"
+        "category": "Utility",
+        "linux": {
+            "deb": {
+                "depends": ["libgtk-3-0", "libwebkit2gtk-4.1-0"]
+            }
+        }
     }
 }

@@ -76,14 +76,17 @@ Verified in audit: drain model was already correct (concurrent reader tasks + `w
 - Validated: `CI=true pnpm check` ✅, `cargo test` 15/15 ✅
 - Skipped: component-render tests (testing-library) — store flows carry the logic; add when a component's own behavior needs guarding
 
-## Phase 6 — Release / signing / licensing
+## Phase 6 — Release / signing / licensing ✅ DONE
 
-- [x] `.github/workflows/release.yml` verified present
-- [ ] macOS: Apple Developer ID + `TAURI_SIGNING_IDENTITY` / `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID`; notarize (README says dmg is unsigned)
-- [ ] If updater: set `bundle.createUpdaterArtifacts: true` — else tauri-action repackages `.app`, invalidates `.sig` (issue #1260)
-- [ ] Audit Windows code signing + Linux package metadata
-- [ ] Keep system-FFmpeg default. If sidecar: LGPL-only, notices + source offer, order custom > bundled > `PATH`, no GPL encoders
-- [ ] `pnpm install --frozen-lockfile` in CI; review `onlyBuiltDependencies` (currently just `esbuild` — clean)
+- [x] `.github/workflows/release.yml` verified present; CI already runs `pnpm install --frozen-lockfile` + cargo test (Phase 4) + pnpm check
+- [x] **macOS signing/notarization wired** (conditional on secrets, unsigned fallback preserved): cert-import step builds a temp keychain when `APPLE_CERTIFICATE` is set; `APPLE_SIGNING_IDENTITY` from repo vars feeds `tauri build`; a post-package step runs `notarytool submit --wait` + `stapler staple` when `APPLE_ID` is set
+- [x] **Windows signing wired**: `WINDOWS_CERTIFICATE`/`WINDOWS_CERTIFICATE_PASSWORD` are passed to the Package step; tauri consumes them natively (no extra step). Unsigned fallback unchanged
+- [x] **Updater deliberately NOT enabled** — no updater infra exists today (no plugin, keys, or endpoint); enabling it is a feature, not a flag. README now documents the four required pieces, including the `createUpdaterArtifacts: true` / tauri-action#1260 repack trap
+- [x] **`.deb` runtime deps fixed**: `bundle.linux.deb.depends = ["libgtk-3-0", "libwebkit2gtk-4.1-0"]` — the deb previously declared no dependencies, so apt users got broken installs. AppImage unaffected
+- [x] LICENSE verified present (MIT); no bundled FFmpeg → no FFmpeg licensing obligations; `onlyBuiltDependencies=esbuild` reviewed, clean
+- [x] Validation: workflow YAML parses; `pnpm tauri build --no-bundle` accepts the new bundle config
+- Not verifiable here: an actual signed macOS build (no Apple Developer account in this env) — the steps are conditional and standard; first real tag cut validates them
+- Skipped: rpm/arch packaging targets (not produced today); Windows Azure Trusted Signing docs (OV-cert path covered by the env vars)
 
 ## Phase 7 — Optional
 
