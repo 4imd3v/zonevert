@@ -16,7 +16,7 @@
 <section class="panel" aria-labelledby="sourceTitle">
   <div class="panel-header">
     <div>
-      <h2 id="sourceTitle">Source</h2>
+      <h2 id="sourceTitle">Sources</h2>
       <p>{countText}</p>
     </div>
     <div class="button-row">
@@ -32,19 +32,15 @@
   <button class="drop-target" type="button" onclick={() => appState.addFiles()}>
     <span class="drop-icon" aria-hidden="true"><Icon name="image" /></span>
     <span class="drop-copy">
-      <strong>Choose or drop images</strong>
-      <small>JPG, PNG, WebP, AVIF, TIFF, BMP, GIF</small>
+      <strong>Drop images here</strong>
+      <small>or click to browse · JPG, PNG, WebP, AVIF, TIFF, BMP, GIF</small>
     </span>
   </button>
 
   <div class="file-list" aria-live="polite">
-    {#if isEmpty}
-      <div class="empty-state">
-        <Icon name="alert" />
-        <span>Add images to start building the FFmpeg command.</span>
-      </div>
-    {:else}
+    {#if !isEmpty}
       {#each appState.files as file, index (file.path)}
+        {@const meta = appState.imageMeta.get(file.path)}
         <div
           class="file-row"
           class:file-row--selected={appState.selectedFileIndex === index}
@@ -62,8 +58,7 @@
           <img class="file-thumb" src={appState.thumbnails.get(file.path)} alt="" />
           <div class="file-info">
             <strong>{file.name || basename(file.path)}</strong>
-            <span>{extension(file.name || file.path).toUpperCase() || "IMAGE"}</span>
-            <span class="file-dimensions">{appState.imageMeta.get(file.path) ?? ""}</span>
+            <span>{extension(file.name || file.path).toUpperCase() || "IMAGE"}{meta ? ` · ${meta}` : ""}</span>
           </div>
           <div class="file-row-buttons">
             <button

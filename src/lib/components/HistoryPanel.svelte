@@ -18,19 +18,14 @@
   }
 </script>
 
-<details class="panel advanced-panel">
-  <summary>
-    <span>History</span>
-    <Icon name="chevron" />
-  </summary>
-
+<section class="panel" aria-label="Past runs">
   {#if !appState.history.length}
-    <div class="empty-state" style="margin: 8px 16px;">
+    <div class="empty-state">
       <span>Past conversions will appear here.</span>
     </div>
   {:else}
-    <div class="queue-list" style="max-height: 260px;">
-      {#each appState.history as entry, index (entry.timestamp)}
+    <div class="queue-list">
+      {#each appState.history as entry (entry.timestamp)}
         <div class="queue-row queue-row--done">
           <div>
             <strong>{formatTime(entry.timestamp)}</strong>
@@ -53,9 +48,7 @@
         </div>
       {/each}
     </div>
-  {/if}
 
-  {#if appState.history.length}
     <div class="advanced-button-row">
       <button class="secondary-button" type="button" onclick={() => appState.clearHistory()}>
         <Icon name="trash" />
@@ -63,4 +56,4 @@
       </button>
     </div>
   {/if}
-</details>
+</section>

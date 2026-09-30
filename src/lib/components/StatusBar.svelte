@@ -9,14 +9,12 @@
 
   let queueSummary = $derived(appState.queueSummary);
   let formatLabel = $derived(FORMAT_LABELS[appState.settings.format] ?? appState.settings.format.toUpperCase());
-  let outputLabel = $derived(appState.outputDir || "Output beside source");
   let ffmpegLabel = $derived(appState.ffmpegVersion || (appState.ffmpegStatus === "ok" ? "FFmpeg ready" : "Checking FFmpeg"));
 </script>
 
 <footer class="status-bar" aria-label="Application status">
   <span><strong>{appState.files.length}</strong> files</span>
   <span>{formatLabel} / quality {appState.settings.quality}</span>
-  <span title={outputLabel}>{outputLabel}</span>
   <span>{queueSummary.text}</span>
   <span class="status-bar__version" title="Zonevert v{__APP_VERSION__}">v{__APP_VERSION__}</span>
   <span class="status-bar__ffmpeg" title={ffmpegLabel}>

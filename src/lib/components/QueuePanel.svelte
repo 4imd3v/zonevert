@@ -40,11 +40,11 @@
         <Icon name="play" />
         Retry failed
       </button>
+      <button class="icon-button" type="button" aria-label="Stop after current" title="Stop after current job" disabled={!canStopAfter} onclick={() => appState.stopAfterCurrentJob()}>
+        <Icon name="square" />
+      </button>
       <button class="icon-button danger-button" type="button" aria-label="Cancel current job" title="Cancel immediately (Esc)" disabled={!canCancel} onclick={() => appState.cancelCurrentJob()}>
         <Icon name="x-circle" />
-      </button>
-      <button class="icon-button" type="button" aria-label="Stop after current" title="Stop after current job" disabled={!canStopAfter} onclick={() => appState.stopAfterCurrentJob()}>
-        <Icon name="x" />
       </button>
     </div>
   </div>

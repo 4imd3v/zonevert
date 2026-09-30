@@ -7,12 +7,7 @@
     : "");
 </script>
 
-<details class="panel advanced-panel">
-  <summary>
-    <span>Advanced FFmpeg</span>
-    <Icon name="chevron" />
-  </summary>
-
+<section class="panel" aria-label="Advanced FFmpeg settings">
   <label class="field">
     <span>FFmpeg path</span>
     <input type="text" spellcheck="false" placeholder="ffmpeg" bind:value={appState.settings.ffmpegPath} oninput={() => appState.persistSettings()} />
@@ -56,4 +51,4 @@
       Reset to defaults
     </button>
   </div>
-</details>
+</section>

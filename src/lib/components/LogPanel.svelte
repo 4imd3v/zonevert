@@ -31,5 +31,5 @@
       </button>
     </div>
   </div>
-  <pre bind:this={logEl} tabindex="-1" role="log" aria-live="polite">{logText}</pre>
+  <pre bind:this={logEl} tabindex="-1" role="log" aria-live="polite">{#if logText}{logText}{:else}<span class="log-idle">FFmpeg output will stream here while converting…</span>{/if}</pre>
 </section>
