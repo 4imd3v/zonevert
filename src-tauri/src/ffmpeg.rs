@@ -269,14 +269,19 @@ pub fn atomic_temp_path(output: &str) -> Option<String> {
     if output.starts_with('-') {
         return None;
     }
-    let path = std::path::Path::new(output);
-    let stem = path.file_stem()?.to_string_lossy();
-    let ext = path.extension()?.to_string_lossy();
-    Some(
-        path.with_file_name(format!("{stem}.zonevert-tmp.{ext}"))
-            .to_string_lossy()
-            .into_owned(),
-    )
+    // String surgery, not Path: on Windows `Path::with_file_name` rewrites
+    // '/' to '\\', producing mixed-separator paths like `/dir\out.mp4`.
+    // ffmpeg tolerates those, but preserving the caller's separators keeps
+    // the temp path identical in shape to the final one.
+    let (dir, file) = match output.rfind(['/', '\\']) {
+        Some(i) => (&output[..=i], &output[i + 1..]),
+        None => ("", output),
+    };
+    let (stem, ext) = file.rsplit_once('.')?;
+    if stem.is_empty() || ext.is_empty() {
+        return None;
+    }
+    Some(format!("{dir}{stem}.zonevert-tmp.{ext}"))
 }
 
 /// `ffmpeg -hide_banner -encoders` -> encoder name list. Feeds the
@@ -970,6 +975,11 @@ Encoders:
         assert_eq!(
             atomic_temp_path("out.gif"),
             Some("out.zonevert-tmp.gif".into())
+        );
+        // Windows-style paths keep their backslashes (no /-normalization)
+        assert_eq!(
+            atomic_temp_path("C:\\dir\\clip.mp4"),
+            Some("C:\\dir\\clip.zonevert-tmp.mp4".into())
         );
     }
 
