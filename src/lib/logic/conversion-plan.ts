@@ -41,8 +41,6 @@ export interface ConversionPlan {
   args: string[];
   /** Total duration in seconds (video plans) — drives queue percent/ETA. */
   duration?: number;
-  /** Approximate output size in bytes (video plans) — shown in the queue. */
-  estimatedBytes?: number;
 }
 
 interface CreateIntentOptions {

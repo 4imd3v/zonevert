@@ -73,8 +73,6 @@ export interface MediaStream {
 export interface MediaProbeResult {
   ok: boolean;
   duration?: number;
-  /** Container bitrate in bits/s (absent when ffprobe reports N/A). */
-  bitRate?: number;
   video?: MediaStream;
   audio?: MediaStream;
   error?: string;
@@ -168,10 +166,6 @@ export async function checkExists(filePath: string): Promise<ExistsResult> {
 
 export async function getFileSize(filePath: string): Promise<FileSizeResult> {
   return invoke<FileSizeResult>("file_size", { path: filePath });
-}
-
-export async function deleteFile(filePath: string): Promise<ExistsResult> {
-  return invoke<ExistsResult>("delete_file", { path: filePath });
 }
 
 export async function getThumbnail(filePath: string): Promise<ThumbnailResult> {

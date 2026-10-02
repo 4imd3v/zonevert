@@ -11,7 +11,6 @@ import {
   cancel as cancelBinding,
   checkExists,
   getFileSize,
-  deleteFile,
   getThumbnail,
   probeImage,
   saveFile,
@@ -24,10 +23,8 @@ import {
 import {
   basename,
   createConversionIntent,
-  dirname,
   extension,
   formatCommand,
-  joinPath,
   missingEncoderWarning,
   planConversion,
   PRESET_DEFAULTS,
@@ -139,10 +136,7 @@ class AppState {
   videoMeta = $state.raw<Map<string, MediaProbeResult>>(new Map());
   // hardware encoder -> passed the 1s validation encode? (name -> bool)
   videoEncoders = $state.raw<Map<string, boolean>>(new Map());
-  // measured bytes-per-second from the sample encode (null until sampled)
-  videoEstimateRate = $state<number | null>(null);
-  private estimateTimer: ReturnType<typeof setTimeout> | null = null;
-  private estimateJobId = 0;
+
 
   // ---- output settings ----
   outputDir = $state("");
@@ -197,10 +191,6 @@ class AppState {
   destroy() {
     this.logUnlisten?.();
     this.logUnlisten = null;
-    if (this.estimateTimer) {
-      clearTimeout(this.estimateTimer);
-      this.estimateTimer = null;
-    }
   }
 
   // ---- derived intent + command ----
@@ -265,8 +255,6 @@ class AppState {
         outputPath: plan.outputPath,
         // drives percent progress + ETA in the queue UI
         duration: probe?.duration,
-        // approximate output size shown in the queue
-        estimatedBytes: plan.estimatedBytes,
       };
     }
     return planConversion(file, this.intent, index);
@@ -279,106 +267,6 @@ class AppState {
   videoSummary(path: string): string {
     const probe = this.videoMeta.get(path);
     return probe ? formatProbeSummary(probe) : "probing…";
-  }
-
-  /** Approximate output size for the first queued video (Video tab).
-   *  Preferred source is the sampled encode rate (bytes/sec, measured from a
-   *  3s clip through the real pipeline); falls back to the bitrate formula
-   *  until a sample exists or for remuxes (where the formula is exact). */
-  get videoEstimate(): string | null {
-    const first = this.files.find((f) => this.videoFiles.has(f.path));
-    if (!first) return null;
-    const probe = this.videoMeta.get(first.path);
-    const plan = this.videoPlanFor(first);
-    if (this.videoEstimateRate != null && probe?.duration) {
-      return formatBytes(this.videoEstimateRate * probe.duration);
-    }
-    return plan.estimatedBytes != null ? formatBytes(plan.estimatedBytes) : null;
-  }
-
-  /**
-   * Sample-encode ~3s of the first video with the current plan and derive a
-   * bytes-per-second rate — the estimate then responds to profile, quality,
-   * resolution AND fps because it measures the real pipeline. Debounced by
-   * callers (scheduleVideoEstimate); runs of superseded settings are ignored.
-   */
-  async updateVideoEstimate() {
-    const job = ++this.estimateJobId;
-    const first = this.files.find((f) => this.videoFiles.has(f.path));
-    const probe = first ? this.videoMeta.get(first.path) : undefined;
-    if (!first || !probe?.duration || probe.duration <= 0) {
-      this.videoEstimateRate = null;
-      return;
-    }
-    const plan = this.videoPlanFor(first);
-    if (!plan.ok) {
-      this.videoEstimateRate = null;
-      return;
-    }
-    if (plan.remuxOnly) {
-      // Remux output ≈ source size — the formula is exact here; no sample.
-      this.videoEstimateRate = null;
-      return;
-    }
-
-    const sampleLen = Math.min(3, probe.duration);
-    const mid = Math.max(0, (probe.duration - sampleLen) / 2);
-    // Sample file sits next to the source (same filesystem as the rename in
-    // the Rust runner) with the profile's real extension.
-    const samplePath = joinPath(
-      dirname(first.path),
-      `.zonevert-sample-${crypto.randomUUID()}.${plan.outputExt}`,
-    );
-    // -ss before -i (fast input seek); swap the planned output for the sample.
-    const inputIdx = plan.args.indexOf("-i");
-    const args = [
-      ...plan.args.slice(0, inputIdx),
-      "-ss",
-      String(mid),
-      ...plan.args.slice(inputIdx, -1),
-      "-t",
-      String(sampleLen),
-      samplePath,
-    ];
-
-    let ok = false;
-    try {
-      const result = await convert({
-        jobId: `estimate:${job}`,
-        ffmpegPath: this.settings.ffmpegPath,
-        args,
-      });
-      if (result.ok) {
-        const size = await getFileSize(samplePath);
-        if (size.ok && size.size > 0) {
-          this.videoEstimateRate = size.size / sampleLen;
-          ok = true;
-        }
-      }
-    } catch {
-      // IPC failure — fall back to the formula estimate
-    }
-    await deleteFile(samplePath);
-    if (job !== this.estimateJobId) return; // superseded by newer settings
-    if (!ok) this.videoEstimateRate = null;
-    // Keep pending queue rows consistent with the sampled rate.
-    if (ok) {
-      for (const item of this.queue) {
-        if (item.status === "pending" && item.duration && this.videoFiles.has(item.file.path)) {
-          item.estimatedBytes = Math.round(this.videoEstimateRate! * item.duration);
-        }
-      }
-      this.queue = [...this.queue];
-    }
-  }
-
-  /** Debounced entry point — settings sliders fire oninput rapidly. */
-  scheduleVideoEstimate() {
-    if (this.estimateTimer) clearTimeout(this.estimateTimer);
-    this.estimateTimer = setTimeout(() => {
-      this.estimateTimer = null;
-      void this.updateVideoEstimate();
-    }, 500);
   }
 
   /** Warnings (or rejection) for the first queued video, for the Video tab. */
@@ -541,12 +429,6 @@ class AppState {
     this.imageMeta = new Map();
     this.videoFiles = new Set();
     this.videoMeta = new Map();
-    this.videoEstimateRate = null;
-    if (this.estimateTimer) {
-      clearTimeout(this.estimateTimer);
-      this.estimateTimer = null;
-    }
-    this.estimateJobId += 1; // invalidate any in-flight sample
   }
 
   private async loadThumbnailsAndMeta() {
@@ -633,7 +515,6 @@ class AppState {
       outputPath: plan.outputPath,
       status: "pending" as const,
       ...(plan.duration != null ? { duration: plan.duration } : {}),
-      ...(plan.estimatedBytes != null ? { estimatedBytes: plan.estimatedBytes } : {}),
     }];
     await this.runConversion(true);
   }

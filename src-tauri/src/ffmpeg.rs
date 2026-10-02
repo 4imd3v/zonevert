@@ -350,9 +350,6 @@ pub struct MediaProbeResult {
     pub ok: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
-    /// Container bitrate in bits/s — drives output size estimates.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bit_rate: Option<f64>,
     pub video: Option<MediaStream>,
     pub audio: Option<MediaStream>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -394,9 +391,6 @@ struct FfprobeStream {
 struct FfprobeFormat {
     #[serde(default)]
     duration: Option<String>,
-    /// Container bitrate; ffprobe emits "N/A" for some formats -> None.
-    #[serde(default)]
-    bit_rate: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -417,7 +411,7 @@ pub async fn probe_media(path: &str, ffmpeg_path: &Option<String>) -> MediaProbe
         "-v",
         "error",
         "-show_entries",
-        "format=duration,bit_rate:stream=index,codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels:stream_disposition=attached_pic",
+        "format=duration:stream=index,codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels:stream_disposition=attached_pic",
         "-of",
         "json",
         path,
@@ -431,7 +425,6 @@ pub async fn probe_media(path: &str, ffmpeg_path: &Option<String>) -> MediaProbe
             return MediaProbeResult {
                 ok: false,
                 duration: None,
-                bit_rate: None,
                 video: None,
                 audio: None,
                 error: Some(format!(
@@ -447,7 +440,6 @@ pub async fn probe_media(path: &str, ffmpeg_path: &Option<String>) -> MediaProbe
         return MediaProbeResult {
             ok: false,
             duration: None,
-            bit_rate: None,
             video: None,
             audio: None,
             error: Some(if stderr.trim().is_empty() {
@@ -463,7 +455,6 @@ pub async fn probe_media(path: &str, ffmpeg_path: &Option<String>) -> MediaProbe
         None => MediaProbeResult {
             ok: false,
             duration: None,
-            bit_rate: None,
             video: None,
             audio: None,
             error: Some("Could not parse ffprobe output.".into()),
@@ -506,17 +497,14 @@ fn parse_probe_json(json: &str) -> Option<MediaProbeResult> {
         .find(|s| s.codec_type.as_deref() == Some("audio"))
         .map(|s| to_stream(s, "audio"));
 
-    let format = parsed.format.as_ref();
     Some(MediaProbeResult {
         ok: true,
-        duration: format
+        duration: parsed
+            .format
+            .as_ref()
             .and_then(|f| f.duration.as_deref())
             .and_then(|d| d.parse::<f64>().ok())
             .filter(|d| d.is_finite() && *d > 0.0),
-        bit_rate: format
-            .and_then(|f| f.bit_rate.as_deref())
-            .and_then(|b| b.parse::<f64>().ok())
-            .filter(|b| b.is_finite() && *b > 0.0),
         video,
         audio,
         error: None,
@@ -880,12 +868,11 @@ Encoders:
                 {"index":0,"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"pix_fmt":"yuv420p","r_frame_rate":"30/1"},
                 {"index":1,"codec_type":"audio","codec_name":"aac","sample_rate":"44100","channels":2,"r_frame_rate":"0/0"}
             ],
-            "format": {"duration": "12.345000", "bit_rate": "2500000"}
+            "format": {"duration": "12.345000"}
         }"#;
         let r = parse_probe_json(json).unwrap();
         assert!(r.ok);
         assert_eq!(r.duration, Some(12.345));
-        assert_eq!(r.bit_rate, Some(2_500_000.0));
         let v = r.video.unwrap();
         assert_eq!(v.codec_name, "h264");
         assert_eq!((v.width, v.height), (Some(1920), Some(1080)));
@@ -921,11 +908,6 @@ Encoders:
         let json = r#"{"streams":[{"index":0,"codec_type":"video","codec_name":"png","width":64,"height":48}],"format":{}}"#;
         let r = parse_probe_json(json).unwrap();
         assert_eq!(r.duration, None);
-
-        // ffprobe emits "N/A" for unknown bitrates -> None, not NaN
-        let json = r#"{"streams":[{"index":0,"codec_type":"video","codec_name":"h264","width":320,"height":240}],"format":{"duration":"2.0","bit_rate":"N/A"}}"#;
-        let r = parse_probe_json(json).unwrap();
-        assert_eq!(r.bit_rate, None);
     }
 
     #[test]
@@ -964,8 +946,7 @@ Encoders:
 
         let r = probe_media(&clip_str, &None).await;
         assert!(r.ok, "probe failed: {:?}", r.error);
-        assert_eq!(r.duration, Some(1.0));
-        assert!(r.bit_rate.is_some_and(|b| b > 0.0), "generated clip has a bitrate: {:?}", r.bit_rate);        let v = r.video.expect("generated clip must report a video stream");
+        assert_eq!(r.duration, Some(1.0));        let v = r.video.expect("generated clip must report a video stream");
         assert_eq!(v.codec_name, "h264");
         assert_eq!((v.width, v.height), (Some(160), Some(120)));
         assert!(r.audio.is_none());

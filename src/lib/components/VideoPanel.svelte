@@ -33,7 +33,6 @@
 
   let crfMax = $derived(CRF_MAX[appState.settings.videoProfile] ?? 51);
   let warnings = $derived(appState.videoWarnings);
-  let estimate = $derived(appState.videoEstimate);
   let hwStatus = $derived(appState.videoHardwareStatus);
   let folderText = $derived(appState.outputDir || "Same folder as each source");
 
@@ -41,20 +40,6 @@
   // lavfi encode each; cached for the session).
   onMount(() => {
     appState.ensureVideoEncoders();
-  });
-
-  // Re-sample the size estimate whenever anything that affects it changes —
-  // profile, quality, resolution, fps, encoder, output dir, file set.
-  $effect(() => {
-    void appState.settings.videoProfile;
-    void appState.settings.videoResolution;
-    void appState.settings.videoFps;
-    void appState.settings.videoCrf;
-    void appState.settings.videoEncoder;
-    void appState.outputDir;
-    void appState.files.length;
-    void appState.videoFiles;
-    appState.scheduleVideoEstimate();
   });
 </script>
 
@@ -120,10 +105,6 @@
         <li><span class="encoder-dot encoder-dot--{hw.status}" aria-hidden="true"></span>{hw.name} — {HW_LABEL[hw.status]}</li>
       {/each}
     </ul>
-  {/if}
-
-  {#if estimate}
-    <p class="encoder-estimate">Estimated output: ≈ {estimate} for the first video in the queue · at comparable quality</p>
   {/if}
 
   {#if warnings.length}

@@ -1187,10 +1187,3 @@ svg {
 .encoder-dot--failed {
   background: var(--danger, #d64545);
 }
-
-/* Estimated output size line (Video panel). */
-.encoder-estimate {
-  font-size: 0.78rem;
-  opacity: 0.85;
-  margin: 0 0 8px;
-}

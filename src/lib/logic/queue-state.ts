@@ -18,8 +18,6 @@ export interface QueueItem {
   /** 0-100 once a progress frame with a timecode arrives; omitted when
    *  duration is unknown (indeterminate progress). */
   progressPercent?: number;
-  /** Approximate output size in bytes (video plans). */
-  estimatedBytes?: number;
 }
 
 export interface QueueSummary {
@@ -50,7 +48,6 @@ export function createQueue(
       outputPath: plan.outputPath,
       status: "pending" as QueueItemStatus,
       ...(plan.duration != null ? { duration: plan.duration } : {}),
-      ...(plan.estimatedBytes != null ? { estimatedBytes: plan.estimatedBytes } : {}),
     };
   });
 
