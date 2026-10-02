@@ -41,7 +41,7 @@ import {
   type VideoPlanResult,
   type VideoProfile,
 } from "$lib/logic/video-plan";
-import { formatProbeSummary } from "$lib/logic/media-probe";
+import { formatProbeSummary, formatBytes } from "$lib/logic/media-probe";
 import {
   createQueue,
   itemEtaSeconds,
@@ -254,6 +254,8 @@ class AppState {
         outputPath: plan.outputPath,
         // drives percent progress + ETA in the queue UI
         duration: probe?.duration,
+        // approximate output size shown in the queue
+        estimatedBytes: plan.estimatedBytes,
       };
     }
     return planConversion(file, this.intent, index);
@@ -266,6 +268,14 @@ class AppState {
   videoSummary(path: string): string {
     const probe = this.videoMeta.get(path);
     return probe ? formatProbeSummary(probe) : "probing…";
+  }
+
+  /** Approximate output size for the first queued video (Video tab). */
+  get videoEstimate(): string | null {
+    const first = this.files.find((f) => this.videoFiles.has(f.path));
+    if (!first) return null;
+    const bytes = this.videoPlanFor(first).estimatedBytes;
+    return bytes != null ? formatBytes(bytes) : null;
   }
 
   /** Warnings (or rejection) for the first queued video, for the Video tab. */
@@ -514,6 +524,7 @@ class AppState {
       outputPath: plan.outputPath,
       status: "pending" as const,
       ...(plan.duration != null ? { duration: plan.duration } : {}),
+      ...(plan.estimatedBytes != null ? { estimatedBytes: plan.estimatedBytes } : {}),
     }];
     await this.runConversion(true);
   }
@@ -913,12 +924,6 @@ class AppState {
   }
 
   // ---- helpers exposed to components ----
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 // Singleton — imported by every component.

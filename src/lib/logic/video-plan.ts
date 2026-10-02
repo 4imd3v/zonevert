@@ -43,6 +43,9 @@ export interface VideoPlanResult {
   chosenVideoEncoder: string;
   /** Set when a hardware encoder was available but couldn't be used. */
   fallbackWarning?: string;
+  /** Approximate output size in bytes (source bitrate scaled by pixel/fps
+   *  ratio). Absent when the probe lacks duration or bitrate. */
+  estimatedBytes?: number;
 }
 
 type Probe = MediaProbeResult | null | undefined;
@@ -437,7 +440,34 @@ export function planVideoConversion(
     remuxOnly,
     chosenVideoEncoder: remuxOnly ? "copy" : entry.name,
     fallbackWarning,
+    estimatedBytes: estimateOutputBytes(probe, intent),
   };
+}
+
+/**
+ * Approximate output bytes: source bitrate scaled by the pixel-count ratio
+ * (resolution change) and fps ratio. At constant quality (what CRF targets)
+ * bitrate scales with pixels x fps, so this is the honest baseline — codec
+ * changes move it up or down, which the size warning covers. Null when the
+ * probe lacks duration or bitrate.
+ */
+export function estimateOutputBytes(
+  probe: Probe,
+  intent: VideoIntent,
+): number | undefined {
+  if (!probe?.ok || !probe.duration || !probe.bitRate) return undefined;
+  const video = probe.video;
+  let ratio = 1;
+  if (intent.resolution !== "source" && video && video.width && video.height) {
+    const target = RESOLUTION_HEIGHT[intent.resolution];
+    ratio *= (target / video.height) ** 2;
+  }
+  if (intent.fps !== "source" && video?.frameRate) {
+    ratio *= intent.fps / video.frameRate;
+  }
+  if (!(ratio > 0) || !Number.isFinite(ratio)) return undefined;
+  // duration (s) x bitrate (bits/s) = bits -> /8 for bytes.
+  return Math.round((probe.duration * probe.bitRate * ratio) / 8);
 }
 
 /** Remux only when the profile's codecs already match and nothing is resized. */

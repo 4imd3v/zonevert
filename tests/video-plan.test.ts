@@ -321,3 +321,48 @@ describe("video-plan size warnings", () => {
     assert.ok(!plan.warnings.some((w) => w.includes("larger file")));
   });
 });
+
+describe("video-plan size estimates", () => {
+  // 1280x720, 30fps, 5s, 800 kbps
+  const sizedProbe: MediaProbeResult = {
+    ok: true,
+    duration: 5,
+    bitRate: 800_000,
+    video: { codecType: "video", codecName: "h264", width: 1280, height: 720, frameRate: 30 },
+  };
+
+  test("source-scale estimate when nothing changes", () => {
+    const plan = planVideoConversion(file, sizedProbe, createVideoIntent());
+    // 5 s x 800 kbit/s = 4,000,000 bits = 500,000 bytes
+    assert.equal(plan.estimatedBytes, 500_000);
+  });
+
+  test("estimate scales with the pixel ratio when downscaling", () => {
+    const plan = planVideoConversion(file, sizedProbe, createVideoIntent({ resolution: "480p" }));
+    // (480/720)^2 = 0.444...
+    assert.equal(plan.estimatedBytes, Math.round((800_000 * 5 * (480 / 720) ** 2) / 8));
+    assert.ok(plan.estimatedBytes! < 500_000);
+  });
+
+  test("estimate scales with fps ratio", () => {
+    const plan = planVideoConversion(file, sizedProbe, createVideoIntent({ fps: 60 }));
+    assert.equal(plan.estimatedBytes, 1_000_000);
+  });
+
+  test("estimate present on the remux path (≈ source size)", () => {
+    const plan = planVideoConversion(
+      { path: "/in/a.mkv", name: "a.mkv" }, sizedProbe,
+      createVideoIntent({ profile: "mp4-h264" }),
+    );
+    assert.equal(plan.remuxOnly, true);
+    assert.equal(plan.estimatedBytes, 500_000);
+  });
+
+  test("no estimate without duration or bitrate", () => {
+    const noRate = { ...sizedProbe, bitRate: undefined };
+    assert.equal(planVideoConversion(file, noRate, createVideoIntent()).estimatedBytes, undefined);
+    const noDur = { ...sizedProbe, duration: undefined };
+    assert.equal(planVideoConversion(file, noDur, createVideoIntent()).estimatedBytes, undefined);
+    assert.equal(planVideoConversion(file, { ok: false }, createVideoIntent()).estimatedBytes, undefined);
+  });
+});

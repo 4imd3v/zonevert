@@ -1,7 +1,7 @@
 <script lang="ts">
   import { appState } from "$lib/stores/app-state.svelte";
   import { itemEtaSeconds, statusLabel, type QueueItem } from "$lib/logic/queue-state";
-  import { formatDuration } from "$lib/logic/media-probe";
+  import { formatDuration, formatBytes } from "$lib/logic/media-probe";
   import { basename } from "$lib/logic/conversion-plan";
   import Icon from "./Icon.svelte";
 
@@ -74,7 +74,7 @@
         >
           <div>
             <strong>{item.file.name || basename(item.file.path)}</strong>
-            <span>{item.outputPath}</span>
+            <span>{item.outputPath}{#if item.estimatedBytes != null} · ≈ {formatBytes(item.estimatedBytes)}{/if}</span>
             <span class="queue-progress-text">{formatItemProgress(item)}</span>
             {#if item.status === "running" && item.progressPercent != null}
               <div

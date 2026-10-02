@@ -21,6 +21,7 @@
 
   let crfMax = $derived(CRF_MAX[appState.settings.videoProfile] ?? 51);
   let warnings = $derived(appState.videoWarnings);
+  let estimate = $derived(appState.videoEstimate);
   let hwStatus = $derived(appState.videoHardwareStatus);
 
   // Validate this profile's hardware encoders once when the tab opens (1s
@@ -89,6 +90,10 @@
         <li><span class="encoder-dot encoder-dot--{hw.status}" aria-hidden="true"></span>{hw.name} — {HW_LABEL[hw.status]}</li>
       {/each}
     </ul>
+  {/if}
+
+  {#if estimate}
+    <p class="encoder-estimate">Estimated output: ≈ {estimate} for the first video in the queue · at comparable quality</p>
   {/if}
 
   {#if warnings.length}

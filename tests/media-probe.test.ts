@@ -2,6 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   classifyMedia,
+  formatBytes,
   formatDuration,
   formatProbeSummary,
   isConvertibleVideo,
@@ -79,5 +80,15 @@ describe("media-probe", () => {
     assert.equal(formatDuration(3725), "1:02:05");
     assert.equal(formatDuration(undefined), "?");
     assert.equal(formatDuration(Number.NaN), "?");
+  });
+});
+
+describe("formatBytes", () => {
+  test("human-readable byte sizes", () => {
+    assert.equal(formatBytes(512), "512 B");
+    assert.equal(formatBytes(2048), "2.0 KB");
+    assert.equal(formatBytes(5 * 1024 * 1024), "5.00 MB");
+    assert.equal(formatBytes(3 * 1024 * 1024 * 1024), "3.00 GB");
+    assert.equal(formatBytes(undefined), "?");
   });
 });

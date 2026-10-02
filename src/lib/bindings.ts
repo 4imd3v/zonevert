@@ -73,6 +73,8 @@ export interface MediaStream {
 export interface MediaProbeResult {
   ok: boolean;
   duration?: number;
+  /** Container bitrate in bits/s (absent when ffprobe reports N/A). */
+  bitRate?: number;
   video?: MediaStream;
   audio?: MediaStream;
   error?: string;
