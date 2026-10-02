@@ -76,15 +76,18 @@ pub async fn run<R: tauri::Runtime>(
     registry: &ProcessRegistry,
     req: ConvertRequest,
 ) -> ConvertResult {
-    // Atomic output: ffmpeg writes to `<output>.zonevert-tmp` (same dir, so
-    // the rename stays on one filesystem) and only a successful exit renames
-    // it into place. Killed or failed runs leave nothing behind. This also
-    // covers images — one code path beats two. Skip-mode (`-n`) is enforced
-    // by the store's pre-run existence check; the temp path never exists.
+    // Atomic output: ffmpeg writes to `<stem>.zonevert-tmp<ext>` (same dir,
+    // so the rename stays on one filesystem) and only a successful exit renames
+    // it into place. Killed or failed runs leave nothing behind. The extension
+    // MUST survive — ffmpeg infers the muxer from it, and `out.mp4.zonevert-tmp`
+    // fails with "unable to choose an output format". Runs whose last arg is
+    // not a plain output file (encoder validation's `-f null -`, pipes) skip
+    // the swap entirely.
     let output_path = req.args.last().cloned();
-    let temp_path = output_path
-        .as_deref()
-        .map(|p| format!("{p}.zonevert-tmp"));
+    let temp_path = req
+        .args
+        .last()
+        .and_then(|last| atomic_temp_path(last));
     let mut args = req.args.clone();
     if let Some(temp) = &temp_path {
         if let Some(last) = args.last_mut() {
@@ -255,6 +258,25 @@ pub async fn run<R: tauri::Runtime>(
     }
 
     result
+}
+
+/// Temp path for atomic output: `/dir/clip.mp4` -> `/dir/clip.zonevert-tmp.mp4`.
+///
+/// Returns None when the argument isn't a plain output file — options (`-`,
+/// `-foo`), pipes (`pipe:1`), or extension-less targets (ffmpeg can't infer a
+/// muxer for those anyway). Those runs execute unwrapped.
+pub fn atomic_temp_path(output: &str) -> Option<String> {
+    if output.starts_with('-') {
+        return None;
+    }
+    let path = std::path::Path::new(output);
+    let stem = path.file_stem()?.to_string_lossy();
+    let ext = path.extension()?.to_string_lossy();
+    Some(
+        path.with_file_name(format!("{stem}.zonevert-tmp.{ext}"))
+            .to_string_lossy()
+            .into_owned(),
+    )
 }
 
 /// `ffmpeg -hide_banner -encoders` -> encoder name list. Feeds the
@@ -951,6 +973,97 @@ Encoders:
         let _ = std::fs::remove_dir(&dir);
     }
 
+    #[test]
+    fn atomic_temp_path_keeps_the_extension() {
+        // ffmpeg infers the muxer from the extension — the temp name must
+        // carry the real one or the run dies with "unable to choose an
+        // output format".
+        assert_eq!(
+            atomic_temp_path("/dir/clip.mp4"),
+            Some("/dir/clip.zonevert-tmp.mp4".into())
+        );
+        assert_eq!(
+            atomic_temp_path("/dir/my.clip.webm"),
+            Some("/dir/my.clip.zonevert-tmp.webm".into())
+        );
+        assert_eq!(
+            atomic_temp_path("out.gif"),
+            Some("out.zonevert-tmp.gif".into())
+        );
+    }
+
+    #[test]
+    fn atomic_temp_path_skips_non_output_args() {
+        // encoder validation ends in `-f null -`: the trailing `-` must not
+        // become `-.zonevert-tmp` (ffmpeg parses it as an option).
+        assert_eq!(atomic_temp_path("-"), None);
+        assert_eq!(atomic_temp_path("-movflags"), None);
+        assert_eq!(atomic_temp_path("pipe:1"), None);
+        assert_eq!(atomic_temp_path("/dir/noext"), None);
+        assert_eq!(atomic_temp_path(""), None);
+    }
+
+    /// The atomic layer against a real ffmpeg: the temp file keeps its
+    /// extension so muxer inference succeeds, and success promotes it to the
+    /// final path. Regression test for the `out.mp4.zonevert-tmp`
+    /// "unable to choose an output format" bug.
+    #[tokio::test]
+    async fn atomic_output_promotes_real_ffmpeg_output() {
+        let _guard = env_guard();
+        if probe("ffmpeg").await.version.is_none() && !std::path::Path::new("/usr/bin/ffmpeg").exists() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("zonevert-atomic-real-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let clip = dir.join("clip.mp4");
+        let out = dir.join("out.mp4");
+        let clip_str = clip.to_string_lossy().to_string();
+        let out_str = out.to_string_lossy().to_string();
+        let gen = Command::new("ffmpeg")
+            .args([
+                "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "color=c=red:s=160x120:r=10",
+                "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                &clip_str,
+            ])
+            .output()
+            .await;
+        if gen.is_err() || !std::path::Path::new(&clip).exists() {
+            return; // ffmpeg present but no lavfi/libx264 — skip
+        }
+
+        let req = ConvertRequest {
+            job_id: "atomic-real".into(),
+            ffmpeg_path: Some("ffmpeg".into()),
+            args: vec![
+                "-hide_banner".into(),
+                "-loglevel".into(),
+                "error".into(),
+                "-y".into(),
+                "-i".into(),
+                clip_str,
+                "-map".into(),
+                "0:v:0".into(),
+                "-map".into(),
+                "0:a:0?".into(),
+                "-c:v".into(),
+                "libx264".into(),
+                "-pix_fmt".into(),
+                "yuv420p".into(),
+                out_str.clone(),
+            ],
+        };
+        let registry = ProcessRegistry::default();
+        let r = run(&tauri::test::mock_app().handle().clone(), &registry, req).await;
+        assert!(r.ok, "real-ffmpeg atomic run failed: {:?}", r.error);
+        assert!(out.exists(), "final output must exist after rename");
+        assert!(
+            !std::path::Path::new(atomic_temp_path(&out_str).unwrap().as_str()).exists(),
+            "temp must be promoted, not left behind"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     // ---- child-process integration tests (fake ffmpeg scripts) ----
 
     /// Write an executable fake-ffmpeg script to a temp dir and return its path.
@@ -1029,7 +1142,7 @@ Encoders:
         assert!(r.ok, "{:?}", r.error);
         assert!(out.exists(), "renamed output must exist");
         assert!(
-            !std::path::Path::new(&format!("{out_str}.zonevert-tmp")).exists(),
+            !std::path::Path::new(atomic_temp_path(&out_str).unwrap().as_str()).exists(),
             "temp must be gone after rename"
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -1053,7 +1166,7 @@ Encoders:
         assert!(!r.ok);
         assert!(!out.exists());
         assert!(
-            !std::path::Path::new(&format!("{out_str}.zonevert-tmp")).exists(),
+            !std::path::Path::new(atomic_temp_path(&out_str).unwrap().as_str()).exists(),
             "failed run must not leave a temp file"
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -1093,7 +1206,7 @@ Encoders:
             .unwrap();
         assert!(!r.ok);
         assert!(
-            !std::path::Path::new(&format!("{out_str}.zonevert-tmp")).exists(),
+            !std::path::Path::new(atomic_temp_path(&out_str).unwrap().as_str()).exists(),
             "SIGKILLed partial temp must be cleaned up"
         );
         assert!(!out.exists(), "no final output from a killed run");
