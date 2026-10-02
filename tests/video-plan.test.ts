@@ -284,3 +284,40 @@ describe("video-plan hardware encoders", () => {
     assert.ok(!args.some((a) => a.endsWith(".mp4")));
   });
 });
+
+describe("video-plan size warnings", () => {
+  test("warns when re-encoding an efficient source at a loose CRF", () => {
+    const plan = planVideoConversion(file, h264Probe, createVideoIntent({ profile: "webm-vp9", crf: 31 }));
+    assert.ok(plan.warnings.some((w) => w.includes("may produce a larger file")));
+    assert.ok(plan.warnings.some((w) => w.includes("h264")));
+  });
+
+  test("no warning for legacy sources (VP8 -> VP9 shrinks in practice)", () => {
+    const vp8 = {
+      ok: true,
+      duration: 47.8,
+      video: { codecType: "video", codecName: "vp8", width: 1398, height: 896 },
+    } as MediaProbeResult;
+    const plan = planVideoConversion(file, vp8, createVideoIntent({ profile: "webm-vp9", crf: 31 }));
+    assert.ok(!plan.warnings.some((w) => w.includes("larger file")));
+  });
+
+  test("no warning when downscaling (fewer pixels dominate the math)", () => {
+    const plan = planVideoConversion(file, h264Probe, createVideoIntent({ resolution: "480p" }));
+    assert.ok(!plan.warnings.some((w) => w.includes("larger file")));
+  });
+
+  test("no warning for a tight quality target", () => {
+    const plan = planVideoConversion(file, h264Probe, createVideoIntent({ profile: "webm-vp9", crf: 18 }));
+    assert.ok(!plan.warnings.some((w) => w.includes("larger file")));
+  });
+
+  test("no warning on the remux path (stream copy is size-neutral)", () => {
+    const plan = planVideoConversion(
+      { path: "/in/a.mkv", name: "a.mkv" }, h264Probe,
+      createVideoIntent({ profile: "mp4-h264", crf: 30 }),
+    );
+    assert.equal(plan.remuxOnly, true);
+    assert.ok(!plan.warnings.some((w) => w.includes("larger file")));
+  });
+});

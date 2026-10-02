@@ -220,6 +220,14 @@ const RESOLUTION_HEIGHT: Record<Exclude<VideoResolution, "source">, number> = {
   "480p": 480,
 };
 
+// Re-encoding an already-efficient source at a loose quality target often
+// produces a LARGER file than the source — the encoder re-derives detail the
+// source already compressed away (observed: 1.1 Mbps H.264 -> VP9 CRF 31 came
+// out 45% bigger; the same test with a legacy VP8 source shrank). Downscaling
+// is exempt: fewer pixels dominate the size math.
+const EFFICIENT_SOURCES = new Set(["h264", "hevc", "vp9", "av1"]);
+const LOOSE_CRF = 25;
+
 const DEFAULT_PROFILE: VideoProfile = "mp4-h264";
 
 // ---- intent ----
@@ -403,6 +411,19 @@ export function planVideoConversion(
     args.push("-c:a", spec.audioEncoder);
     args.push(...spec.audioArgs);
     args.push(...spec.muxArgs);
+
+    const targetH =
+      intent.resolution !== "source" ? RESOLUTION_HEIGHT[intent.resolution] : null;
+    const downscaling = targetH != null && targetH < video.height!;
+    if (
+      !downscaling &&
+      crf >= LOOSE_CRF &&
+      EFFICIENT_SOURCES.has(video.codecName)
+    ) {
+      warnings.push(
+        `Source is already ${video.codecName} — re-encoding at CRF ${crf} may produce a larger file than the source. Raise the CRF (lower quality) if you want a smaller file.`,
+      );
+    }
   }
 
   args.push(outputPath);

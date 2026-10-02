@@ -158,7 +158,10 @@ can be mixed in one queue — each file is planned with its own profile.
 
 Controls: resolution (source / 1080p / 720p / 480p, `scale=-2:H`), frame rate
 (source / 24 / 30 / 60), and a CRF quality slider (0–51, or 0–63 for VP9;
-lower = better quality, larger files).
+lower = better quality, larger files). Zonevert warns before running when the
+source is already an efficient codec (H.264 / HEVC / VP9 / AV1) and the chosen
+quality is loose — re-encoding then often produces a larger file than the
+source.
 
 ### Remuxing
 
