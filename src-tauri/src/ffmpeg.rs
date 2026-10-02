@@ -988,7 +988,11 @@ Encoders:
     /// extension so muxer inference succeeds, and success promotes it to the
     /// final path. Regression test for the `out.mp4.zonevert-tmp`
     /// "unable to choose an output format" bug.
+    ///
+    /// unix-only like its fake-script siblings: it uses tauri's mock_app, and
+    /// the test feature is target-gated to unix (see Cargo.toml).
     #[tokio::test]
+    #[cfg(unix)]
     async fn atomic_output_promotes_real_ffmpeg_output() {
         let _guard = env_guard();
         if probe("ffmpeg").await.version.is_none() && !std::path::Path::new("/usr/bin/ffmpeg").exists() {
@@ -1078,6 +1082,7 @@ Encoders:
         path.to_string_lossy().to_string()
     }
 
+    #[cfg(unix)]
     fn convert_req(job_id: &str, ffmpeg_path: String) -> ConvertRequest {
         ConvertRequest {
             job_id: job_id.to_string(),
@@ -1086,6 +1091,7 @@ Encoders:
         }
     }
 
+    #[cfg(unix)]
     fn convert_req_with_output(job_id: &str, ffmpeg_path: String, output: String) -> ConvertRequest {
         ConvertRequest {
             job_id: job_id.to_string(),

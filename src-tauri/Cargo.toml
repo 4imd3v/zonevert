@@ -31,7 +31,11 @@ nix = { version = "0.29", features = ["signal"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
-[dev-dependencies]
+# The tauri `test` feature (mock_app) is only used by the unix-gated
+# fake-script integration tests. Target-gating it keeps the Windows test
+# binary free of that linkage — with it, the Windows CI test binary fails at
+# startup with STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139).
+[target.'cfg(unix)'.dev-dependencies]
 tauri = { version = "2", features = ["test"] }
 
 [features]
