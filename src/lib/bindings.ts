@@ -170,6 +170,10 @@ export async function getFileSize(filePath: string): Promise<FileSizeResult> {
   return invoke<FileSizeResult>("file_size", { path: filePath });
 }
 
+export async function deleteFile(filePath: string): Promise<ExistsResult> {
+  return invoke<ExistsResult>("delete_file", { path: filePath });
+}
+
 export async function getThumbnail(filePath: string): Promise<ThumbnailResult> {
   return invoke<ThumbnailResult>("image_thumbnail", { filePath });
 }

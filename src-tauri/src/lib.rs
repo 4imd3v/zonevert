@@ -35,6 +35,7 @@ pub fn run() {
             commands::cancel,
             commands::check_exists,
             commands::file_size,
+            commands::delete_file,
             commands::save_file,
             commands::image_thumbnail,
             commands::probe_image,

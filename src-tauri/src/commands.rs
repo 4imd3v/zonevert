@@ -208,6 +208,19 @@ pub fn file_size(path: String) -> FileSizeResult {
     }
 }
 
+/// Best-effort delete (sample-estimate cleanup). Idempotent: deleting a
+/// missing path still reports ok.
+#[tauri::command]
+pub fn delete_file(path: String) -> ExistsResult {
+    match std::fs::remove_file(&path) {
+        Ok(()) => ExistsResult { ok: true, exists: false },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            ExistsResult { ok: true, exists: false }
+        }
+        Err(e) => ExistsResult { ok: false, exists: true },
+    }
+}
+
 #[tauri::command]
 pub async fn probe_encoders(ffmpeg_path: Option<String>) -> Vec<String> {
     ffmpeg::encoders(&ffmpeg::resolve_ffmpeg(&ffmpeg_path)).await
@@ -335,5 +348,17 @@ mod tests {
         assert!(!r.ok);
         assert!(r.error.is_some());
         assert_eq!(r.size, 0);
+    }
+
+    #[test]
+    fn delete_file_removes_and_is_idempotent() {
+        let path = std::env::temp_dir().join("zonevert-delete-test.txt");
+        std::fs::write(&path, "x").unwrap();
+        let r = delete_file(path.to_string_lossy().to_string());
+        assert!(r.ok);
+        assert!(!path.exists());
+        // deleting a missing path is a no-op success (sample cleanup races)
+        let again = delete_file(path.to_string_lossy().to_string());
+        assert!(again.ok);
     }
 }

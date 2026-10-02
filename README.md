@@ -163,9 +163,10 @@ Controls: resolution (source / 1080p / 720p / 480p, `scale=-2:H`), frame rate
 lower = better quality, larger files). Zonevert warns before running when the
 source is already an efficient codec (H.264 / HEVC / VP9 / AV1) and the chosen
 quality is loose — re-encoding then often produces a larger file than the
-source. The Video tab and each queue row also show an approximate output size
-(source bitrate scaled by resolution/fps ratio; exact for remuxes, a ballpark
-for CRF re-encodes).
+source. The Video tab and each queue row also show an approximate output
+size: for re-encodes a 3-second sample of the actual file is encoded through
+the real pipeline and extrapolated (exact for remuxes), so the number responds
+to profile, quality, resolution and frame rate.
 
 ### Animated images
 

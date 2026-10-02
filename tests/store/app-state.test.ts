@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   cancel: vi.fn(async (_jobId: string) => ({ ok: true })),
   checkExists: vi.fn(async (_p: string) => ({ ok: true, exists: false })),
   getFileSize: vi.fn(async (_p: string) => ({ ok: true, size: 0 })),
+  deleteFile: vi.fn(async (_p: string) => ({ ok: true, exists: false })),
   getThumbnail: vi.fn(async (_p: string) => ({ ok: true, dataUrl: "data:," })),
   probeImage: vi.fn(async (_p: string) => ({ ok: true, width: 10, height: 10 })),
   probeMedia: vi.fn(async (_p: string): Promise<MediaProbeResult> => ({ ok: false, error: "no ffprobe" })),
@@ -446,5 +447,74 @@ describe("video hardware encoders", () => {
     const item = appState.queue.find((i) => i.file.path === "/in/clip.mkv")!;
     expect(item.args).toContain("libx264");
     expect(item.args).not.toContain("h264_nvenc");
+  });
+});
+
+describe("video size estimate sampling", () => {
+  // vp9 source: every mp4 profile re-encodes (a matching probe would remux,
+  // and remuxes need no sample — the formula is exact there)
+  const videoProbe: MediaProbeResult = {
+    ok: true,
+    duration: 12,
+    bitRate: 800_000,
+    video: { codecType: "video", codecName: "vp9", width: 1280, height: 720, frameRate: 30 },
+    audio: { codecType: "audio", codecName: "opus", sampleRate: 48000, channels: 2 },
+  };
+
+  beforeEach(() => {
+    appState.videoEstimateRate = null;
+  });
+
+  it("re-measures the estimate when profile or quality changes", async () => {
+    h.probeMedia.mockImplementation(async () => videoProbe);
+    // sample encode of 3s -> 1.5MB => 500 KB/s => 6 MB for the 12s file
+    h.getFileSize.mockImplementation(async (p: string) => ({
+      ok: true,
+      size: p.includes(".zonevert-sample-") ? 1_500_000 : 0,
+    }));
+    h.convert.mockImplementation(async () => ({ ok: true }));
+    appState.outputDir = "/out";
+    appState.addDroppedFiles(["/in/clip.mp4"]);
+    await waitFor(() => appState.isVideo("/in/clip.mp4"));
+
+    appState.scheduleVideoEstimate();
+    await waitFor(() => appState.videoEstimateRate === 500_000);
+    expect(appState.videoEstimate).toBe("5.72 MB"); // 500 KB/s x 12s in binary MB
+    // the sample call carries a seek + the planned pipeline
+    expect(h.convert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: expect.stringMatching(/^estimate:/),
+        args: expect.arrayContaining(["-ss", "-t"]),
+      }),
+    );
+    // sample file is cleaned up
+    expect(h.deleteFile).toHaveBeenCalledWith(
+      expect.stringContaining(".zonevert-sample-"),
+    );
+
+    // profile change -> different sample size -> different estimate
+    h.getFileSize.mockImplementation(async (p: string) => ({
+      ok: true,
+      size: p.includes(".zonevert-sample-") ? 3_600_000 : 0,
+    }));
+    appState.settings.videoProfile = "mp4-hevc";
+    appState.scheduleVideoEstimate();
+    await waitFor(() => appState.videoEstimateRate === 1_200_000);
+  });
+
+  it("falls back to the bitrate formula when the sample fails", async () => {
+    h.probeMedia.mockImplementation(async () => videoProbe);
+    h.convert.mockImplementation(async (p: { jobId: string }) =>
+      p.jobId.startsWith("estimate:") ? { ok: false, error: "boom" } : { ok: true },
+    );
+    appState.outputDir = "/out";
+    appState.addDroppedFiles(["/in/clip.mp4"]);
+    await waitFor(() => appState.isVideo("/in/clip.mp4"));
+
+    appState.scheduleVideoEstimate();
+    await waitFor(() => h.convert.mock.calls.some((c) => String(c[0].jobId).startsWith("estimate:")) && !appState.isConverting);
+    // rate stays null -> formula estimate (12s x 800kbps = 1.2MB)
+    expect(appState.videoEstimateRate).toBe(null);
+    expect(appState.videoEstimate).toBe("1.14 MB"); // 12s x 800 kbps, binary MB
   });
 });

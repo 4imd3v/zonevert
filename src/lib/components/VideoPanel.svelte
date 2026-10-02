@@ -42,6 +42,20 @@
   onMount(() => {
     appState.ensureVideoEncoders();
   });
+
+  // Re-sample the size estimate whenever anything that affects it changes —
+  // profile, quality, resolution, fps, encoder, output dir, file set.
+  $effect(() => {
+    void appState.settings.videoProfile;
+    void appState.settings.videoResolution;
+    void appState.settings.videoFps;
+    void appState.settings.videoCrf;
+    void appState.settings.videoEncoder;
+    void appState.outputDir;
+    void appState.files.length;
+    void appState.videoFiles;
+    appState.scheduleVideoEstimate();
+  });
 </script>
 
 <section class="panel" aria-labelledby="videoTitle">
