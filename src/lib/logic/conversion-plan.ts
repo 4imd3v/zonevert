@@ -444,7 +444,7 @@ function isWindowsPath(filePath: string): boolean {
   return /^[a-z]:\\/i.test(filePath);
 }
 
-function dirname(filePath: string): string {
+export function dirname(filePath: string): string {
   const text = String(filePath || "");
   const separator = isWindowsPath(text) || text.includes("\\") ? "\\" : "/";
   const index = text.lastIndexOf(separator);
@@ -462,13 +462,13 @@ export function extension(name: string): string {
   return index > 0 ? fileName.slice(index + 1).toLowerCase() : "";
 }
 
-function stem(name: string): string {
+export function stem(name: string): string {
   const fileName = basename(name);
   const index = fileName.lastIndexOf(".");
   return index > 0 ? fileName.slice(0, index) : fileName;
 }
 
-function joinPath(directory: string, fileName: string): string {
+export function joinPath(directory: string, fileName: string): string {
   const text = String(directory || "");
 
   if (!text) {

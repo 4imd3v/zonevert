@@ -55,7 +55,7 @@ media summary. Frontend can classify "is this real video?" before queueing.
 - Exit: cover-art mp3 is NOT video; no-audio mp4 IS convertible video;
   missing ffprobe returns a typed error, not a crash.
 
-## Phase 2 — Video conversion planning (pure logic)
+## Phase 2 — Video conversion planning (pure logic) — DONE
 
 Goal: `video-plan.ts` builds a tested argv from (probe summary × profile).
 
