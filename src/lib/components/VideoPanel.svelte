@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { appState } from "$lib/stores/app-state.svelte";
+  import Icon from "./Icon.svelte";
 
   const PROFILES = [
     { value: "mp4-h264", label: "MP4 · H.264 (universal)" },
@@ -34,6 +35,7 @@
   let warnings = $derived(appState.videoWarnings);
   let estimate = $derived(appState.videoEstimate);
   let hwStatus = $derived(appState.videoHardwareStatus);
+  let folderText = $derived(appState.outputDir || "Same folder as each source");
 
   // Validate this profile's hardware encoders once when the tab opens (1s
   // lavfi encode each; cached for the session).
@@ -46,8 +48,11 @@
   <div class="panel-header">
     <div>
       <h2 id="videoTitle">Video</h2>
-      <p>Applies to videos in the queue · images use the Output tab</p>
+      <p>{folderText}</p>
     </div>
+    <button class="icon-button" type="button" aria-label="Choose output folder" title="Choose output folder" onclick={() => appState.pickOutputDir()}>
+      <Icon name="folder" />
+    </button>
   </div>
 
   <div class="field-grid">
