@@ -38,6 +38,7 @@ pub fn run() {
             commands::save_file,
             commands::image_thumbnail,
             commands::probe_image,
+            commands::probe_media,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

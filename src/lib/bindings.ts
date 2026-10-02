@@ -59,6 +59,25 @@ export interface ProbeImageResult {
   error?: string;
 }
 
+export interface MediaStream {
+  codecType: string;
+  codecName: string;
+  width?: number;
+  height?: number;
+  pixFmt?: string;
+  frameRate?: number;
+  sampleRate?: number;
+  channels?: number;
+}
+
+export interface MediaProbeResult {
+  ok: boolean;
+  duration?: number;
+  video?: MediaStream;
+  audio?: MediaStream;
+  error?: string;
+}
+
 export interface SelectedImage {
   path: string;
   name: string;
@@ -146,6 +165,13 @@ export async function probeImage(
   ffmpegPath?: string,
 ): Promise<ProbeImageResult> {
   return invoke<ProbeImageResult>("probe_image", { filePath, ffmpegPath });
+}
+
+export async function probeMedia(
+  filePath: string,
+  ffmpegPath?: string,
+): Promise<MediaProbeResult> {
+  return invoke<MediaProbeResult>("probe_media", { filePath, ffmpegPath });
 }
 
 export async function saveFile(payload: {

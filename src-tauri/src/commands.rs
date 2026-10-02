@@ -82,7 +82,6 @@ pub struct ProbeImageResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
-
 // ---- request shapes ----
 
 #[derive(Deserialize)]
@@ -238,6 +237,14 @@ pub async fn image_thumbnail(file_path: String) -> ThumbnailResult {
 #[tauri::command]
 pub async fn probe_image(file_path: String, ffmpeg_path: Option<String>) -> ProbeImageResult {
     ffmpeg::probe_image(&file_path, &ffmpeg_path).await
+}
+
+/// Full media inspection (video/audio/image) via ffprobe. `video` is None
+/// for audio files (cover art filtered) and for failures; the frontend
+/// classifies via the returned summary.
+#[tauri::command]
+pub async fn probe_media(file_path: String, ffmpeg_path: Option<String>) -> ffmpeg::MediaProbeResult {
+    ffmpeg::probe_media(&file_path, &ffmpeg_path).await
 }
 
 #[cfg(test)]

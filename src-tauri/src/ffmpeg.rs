@@ -1,6 +1,6 @@
 use crate::{commands::*, state::ProcessRegistry};
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
@@ -260,6 +260,263 @@ fn parse_encoders(stdout: &str) -> Vec<String> {
         .collect()
 }
 
+// ---- media probe (ffprobe) ----
+
+/// One probed stream, normalized for the frontend. Video streams that are
+/// only cover art (`disposition.attached_pic = 1`) are filtered out by the
+/// caller-visible rule in `probe_media`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaStream {
+    pub codec_type: String,
+    pub codec_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pix_fmt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frame_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sample_rate: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channels: Option<u32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaProbeResult {
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<f64>,
+    pub video: Option<MediaStream>,
+    pub audio: Option<MediaStream>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+// ffprobe -of json shapes. Every field optional: ffprobe omits entries for
+// streams that don't have them (audio has no width, images have no format
+// duration).
+#[derive(Deserialize)]
+struct FfprobeDisposition {
+    #[serde(default)]
+    attached_pic: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct FfprobeStream {
+    #[serde(default)]
+    codec_type: Option<String>,
+    #[serde(default)]
+    codec_name: Option<String>,
+    #[serde(default)]
+    width: Option<u32>,
+    #[serde(default)]
+    height: Option<u32>,
+    #[serde(default)]
+    pix_fmt: Option<String>,
+    #[serde(default)]
+    r_frame_rate: Option<String>,
+    #[serde(default)]
+    sample_rate: Option<String>,
+    #[serde(default)]
+    channels: Option<u32>,
+    #[serde(default)]
+    disposition: Option<FfprobeDisposition>,
+}
+
+#[derive(Deserialize)]
+struct FfprobeFormat {
+    #[serde(default)]
+    duration: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FfprobeJson {
+    #[serde(default)]
+    streams: Vec<FfprobeStream>,
+    #[serde(default)]
+    format: Option<FfprobeFormat>,
+}
+
+/// Full media inspection: duration + first real video stream + first audio
+/// stream. `video` is None for audio files (even with cover art) and for
+/// probe failures; callers classify via `video.is_some()`.
+pub async fn probe_media(path: &str, ffmpeg_path: &Option<String>) -> MediaProbeResult {
+    let ffprobe = resolve_ffprobe(ffmpeg_path);
+    let mut cmd = Command::new(&ffprobe);
+    cmd.args([
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration:stream=index,codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels:stream_disposition=attached_pic",
+        "-of",
+        "json",
+        path,
+    ]);
+    no_window(&mut cmd);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    let out = match cmd.output().await {
+        Ok(o) => o,
+        Err(e) => {
+            return MediaProbeResult {
+                ok: false,
+                duration: None,
+                video: None,
+                audio: None,
+                error: Some(format!(
+                    "Could not run ffprobe ({}): {}",
+                    ffprobe, e
+                )),
+            }
+        }
+    };
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return MediaProbeResult {
+            ok: false,
+            duration: None,
+            video: None,
+            audio: None,
+            error: Some(if stderr.trim().is_empty() {
+                format!("ffprobe exited with code {}", out.status.code().unwrap_or(-1))
+            } else {
+                stderr.trim().to_string()
+            }),
+        };
+    }
+
+    match parse_probe_json(&String::from_utf8_lossy(&out.stdout)) {
+        Some(r) => r,
+        None => MediaProbeResult {
+            ok: false,
+            duration: None,
+            video: None,
+            audio: None,
+            error: Some("Could not parse ffprobe output.".into()),
+        },
+    }
+}
+
+/// Pure: ffprobe JSON → MediaProbeResult. Video stream selection skips
+/// attached-pic (cover art) streams; first audio stream wins.
+fn parse_probe_json(json: &str) -> Option<MediaProbeResult> {
+    let parsed: FfprobeJson = serde_json::from_str(json).ok()?;
+
+    let to_stream = |s: &FfprobeStream, codec_type: &str| MediaStream {
+        codec_type: codec_type.to_string(),
+        codec_name: s.codec_name.clone().unwrap_or_default(),
+        width: s.width,
+        height: s.height,
+        pix_fmt: s.pix_fmt.clone(),
+        frame_rate: s.r_frame_rate.as_deref().and_then(parse_frame_rate),
+        sample_rate: s.sample_rate.as_deref().and_then(|v| v.parse().ok()),
+        channels: s.channels,
+    };
+
+    let is_attached_pic = |s: &FfprobeStream| {
+        s.disposition
+            .as_ref()
+            .and_then(|d| d.attached_pic)
+            .unwrap_or(0)
+            == 1
+    };
+
+    let video = parsed
+        .streams
+        .iter()
+        .find(|s| s.codec_type.as_deref() == Some("video") && !is_attached_pic(s))
+        .map(|s| to_stream(s, "video"));
+    let audio = parsed
+        .streams
+        .iter()
+        .find(|s| s.codec_type.as_deref() == Some("audio"))
+        .map(|s| to_stream(s, "audio"));
+
+    Some(MediaProbeResult {
+        ok: true,
+        duration: parsed
+            .format
+            .as_ref()
+            .and_then(|f| f.duration.as_deref())
+            .and_then(|d| d.parse::<f64>().ok())
+            .filter(|d| d.is_finite() && *d > 0.0),
+        video,
+        audio,
+        error: None,
+    })
+}
+
+/// `"30000/1001"` → 29.97; `"0/0"` and garbage → None.
+fn parse_frame_rate(value: &str) -> Option<f64> {
+    let (num, den) = value.split_once('/')?;
+    let num: f64 = num.parse().ok()?;
+    let den: f64 = den.parse().ok()?;
+    if den == 0.0 || num == 0.0 {
+        return None;
+    }
+    Some(num / den)
+}
+
+/// Resolve the ffprobe executable. Priority:
+///   1. sibling of an explicit absolute ffmpeg path (`/opt/ff/ffmpeg` ->
+///      `/opt/ff/ffprobe`, `.exe` aware) — users who point at a bundled or
+///      custom build almost never have a bare `ffprobe` on PATH
+///   2. `FFPROBE_PATH` env var
+///   3. bare `ffprobe` (system PATH)
+pub fn resolve_ffprobe(ffmpeg_path: &Option<String>) -> String {
+    if let Some(p) = ffmpeg_path.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        if let Some(sibling) = ffprobe_sibling(p) {
+            return sibling;
+        }
+    }
+    if let Ok(env) = std::env::var("FFPROBE_PATH") {
+        if !env.trim().is_empty() {
+            return env.trim().to_owned();
+        }
+    }
+    "ffprobe".into()
+}
+
+/// Replace the final path component `ffmpeg[.exe]` with `ffprobe[.exe]`.
+/// Only paths whose executable name starts with `ffmpeg` qualify; anything
+/// else (e.g. a wrapper script named `convert`) falls through to PATH.
+fn ffprobe_sibling(ffmpeg_path: &str) -> Option<String> {
+    let (dir, file) = split_final_component(ffmpeg_path)?;
+    let stem = file.strip_suffix(".exe").unwrap_or(&file);
+    if !stem.starts_with("ffmpeg") {
+        return None;
+    }
+    let ext = if file != stem { ".exe" } else { "" };
+    let sep = separator_for(ffmpeg_path);
+    match dir {
+        Some(d) => Some(format!("{d}{sep}ffprobe{ext}")),
+        None => Some(format!("ffprobe{ext}")),
+    }
+}
+
+/// Split off the last path component (either separator style).
+fn split_final_component(path: &str) -> Option<(Option<&str>, &str)> {
+    let idx = path.rfind(['/', '\\'])?;
+    let (dir, file) = (&path[..idx], &path[idx + 1..]);
+    if file.is_empty() {
+        return None;
+    }
+    Some((Some(dir), file))
+}
+
+fn separator_for(path: &str) -> char {
+    if path.rfind('\\').unwrap_or(0) > path.rfind('/').unwrap_or(0) {
+        '\\'
+    } else {
+        '/'
+    }
+}
+
 /// `ffprobe` width/height probe (replaces ffprobe:run).
 pub async fn probe_image(path: &str, ffmpeg_path: &Option<String>) -> ProbeImageResult {
     let mut cmd = Command::new(resolve_ffmpeg(ffmpeg_path));
@@ -484,6 +741,142 @@ Encoders:
         assert!(parse_encoders("").is_empty());
         assert!(parse_encoders("Encoders:\n-------\n").is_empty());
         assert!(parse_encoders("ffmpeg version 8.0.1").is_empty());
+    }
+
+    #[test]
+    fn resolve_ffprobe_derives_sibling_from_ffmpeg_path() {
+        assert_eq!(
+            resolve_ffprobe(&Some("/opt/ffmpeg/bin/ffmpeg".into())),
+            "/opt/ffmpeg/bin/ffprobe"
+        );
+        assert_eq!(
+            resolve_ffprobe(&Some("/opt/ffmpeg/bin/ffmpeg.exe".into())),
+            "/opt/ffmpeg/bin/ffprobe.exe"
+        );
+        assert_eq!(
+            resolve_ffprobe(&Some("C:\\ff\\ffmpeg.exe".into())),
+            "C:\\ff\\ffprobe.exe"
+        );
+        // version-suffixed builds still map correctly
+        assert_eq!(
+            resolve_ffprobe(&Some("/opt/ff/ffmpeg-7".into())),
+            "/opt/ff/ffprobe"
+        );
+        // a non-ffmpeg name must NOT become ffprobe (would be a bogus path)
+        assert_eq!(resolve_ffprobe(&Some("/opt/tools/convert".into())), "ffprobe");
+    }
+
+    // Env-var resolution is order-sensitive: all cases in one test (cargo
+    // runs tests in parallel threads).
+    #[test]
+    fn resolve_ffprobe_env_priority() {
+        std::env::remove_var("FFPROBE_PATH");
+        assert_eq!(resolve_ffprobe(&None), "ffprobe");
+        assert_eq!(resolve_ffprobe(&Some(String::new())), "ffprobe");
+        assert_eq!(resolve_ffprobe(&Some("  ".into())), "ffprobe");
+
+        std::env::set_var("FFPROBE_PATH", "/env/ffprobe");
+        assert_eq!(resolve_ffprobe(&None), "/env/ffprobe");
+        // explicit ffmpeg path wins over env (sibling beats env)
+        assert_eq!(
+            resolve_ffprobe(&Some("/opt/ffmpeg/bin/ffmpeg".into())),
+            "/opt/ffmpeg/bin/ffprobe"
+        );
+
+        std::env::remove_var("FFPROBE_PATH");
+    }
+
+    #[test]
+    fn parses_probe_json_video_and_audio() {
+        let json = r#"{
+            "streams": [
+                {"index":0,"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"pix_fmt":"yuv420p","r_frame_rate":"30/1"},
+                {"index":1,"codec_type":"audio","codec_name":"aac","sample_rate":"44100","channels":2,"r_frame_rate":"0/0"}
+            ],
+            "format": {"duration": "12.345000"}
+        }"#;
+        let r = parse_probe_json(json).unwrap();
+        assert!(r.ok);
+        assert_eq!(r.duration, Some(12.345));
+        let v = r.video.unwrap();
+        assert_eq!(v.codec_name, "h264");
+        assert_eq!((v.width, v.height), (Some(1920), Some(1080)));
+        assert_eq!(v.frame_rate, Some(30.0));
+        let a = r.audio.unwrap();
+        assert_eq!(a.codec_name, "aac");
+        assert_eq!(a.channels, Some(2));
+        // audio streams expose r_frame_rate 0/0 — must parse to None, not NaN
+        assert_eq!(a.frame_rate, None);
+    }
+
+    #[test]
+    fn parses_probe_json_skips_cover_art_and_missing_duration() {
+        // mp3 with attached album art: the png stream is cover art, not video
+        let json = r#"{
+            "streams": [
+                {"index":0,"codec_type":"audio","codec_name":"mp3","sample_rate":"44100","channels":1},
+                {"index":1,"codec_type":"video","codec_name":"png","width":64,"height":48,"pix_fmt":"rgb24","r_frame_rate":"90000/1","disposition":{"attached_pic":1}}
+            ],
+            "format": {"duration": "1.000000"}
+        }"#;
+        let r = parse_probe_json(json).unwrap();
+        assert!(r.video.is_none(), "cover art must not classify as video");
+        assert!(r.audio.is_some());
+
+        // no-audio video: audio is None — planner must use -map 0:a:0?
+        let json = r#"{"streams":[{"index":0,"codec_type":"video","codec_name":"h264","width":320,"height":240}],"format":{"duration":"2.000000"}}"#;
+        let r = parse_probe_json(json).unwrap();
+        assert!(r.video.is_some());
+        assert!(r.audio.is_none());
+
+        // still images carry no format duration
+        let json = r#"{"streams":[{"index":0,"codec_type":"video","codec_name":"png","width":64,"height":48}],"format":{}}"#;
+        let r = parse_probe_json(json).unwrap();
+        assert_eq!(r.duration, None);
+    }
+
+    #[test]
+    fn parses_probe_json_rejects_garbage() {
+        assert!(parse_probe_json("").is_none());
+        assert!(parse_probe_json("not json").is_none());
+    }
+
+    // ---- child-process integration test (real ffprobe) ----
+
+    /// End-to-end: generate a 1s clip with lavfi, probe it, assert the
+    /// summary. Skips itself when no ffmpeg/ffprobe is installed (CI matrix
+    /// runners without ffmpeg must stay green).
+    #[tokio::test]
+    async fn probe_media_on_generated_clip() {
+        if probe("ffmpeg").await.version.is_none() && !std::path::Path::new("/usr/bin/ffmpeg").exists() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("zonevert-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let clip = dir.join("clip.mp4");
+        let clip_str = clip.to_string_lossy().to_string();
+        let gen = Command::new("ffmpeg")
+            .args([
+                "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "color=c=red:s=160x120:r=10",
+                "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                &clip_str,
+            ])
+            .output()
+            .await;
+        if gen.is_err() || !std::path::Path::new(&clip).exists() {
+            return; // ffmpeg present but no lavfi/libx264 — skip
+        }
+
+        let r = probe_media(&clip_str, &None).await;
+        assert!(r.ok, "probe failed: {:?}", r.error);
+        assert_eq!(r.duration, Some(1.0));
+        let v = r.video.expect("generated clip must report a video stream");
+        assert_eq!(v.codec_name, "h264");
+        assert_eq!((v.width, v.height), (Some(160), Some(120)));
+        assert!(r.audio.is_none());
+        let _ = std::fs::remove_file(&clip);
+        let _ = std::fs::remove_dir(&dir);
     }
 
     // ---- child-process integration tests (fake ffmpeg scripts) ----
