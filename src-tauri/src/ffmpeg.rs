@@ -76,8 +76,24 @@ pub async fn run<R: tauri::Runtime>(
     registry: &ProcessRegistry,
     req: ConvertRequest,
 ) -> ConvertResult {
+    // Atomic output: ffmpeg writes to `<output>.zonevert-tmp` (same dir, so
+    // the rename stays on one filesystem) and only a successful exit renames
+    // it into place. Killed or failed runs leave nothing behind. This also
+    // covers images — one code path beats two. Skip-mode (`-n`) is enforced
+    // by the store's pre-run existence check; the temp path never exists.
+    let output_path = req.args.last().cloned();
+    let temp_path = output_path
+        .as_deref()
+        .map(|p| format!("{p}.zonevert-tmp"));
+    let mut args = req.args.clone();
+    if let Some(temp) = &temp_path {
+        if let Some(last) = args.last_mut() {
+            *last = temp.clone();
+        }
+    }
+
     let mut cmd = Command::new(resolve_ffmpeg(&req.ffmpeg_path));
-    cmd.args(&req.args);
+    cmd.args(&args);
     no_window(&mut cmd);
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -193,7 +209,7 @@ pub async fn run<R: tauri::Runtime>(
     let _ = tokio::time::timeout(GRACEFUL_EXIT, stderr_task).await;
     let stderr_tail = last_stderr.lock().await.clone();
 
-    match status {
+    let mut result = match status {
         Ok(s) if s.success() => ConvertResult {
             ok: true,
             code: s.code(),
@@ -216,7 +232,29 @@ pub async fn run<R: tauri::Runtime>(
             signal: None,
             error: Some(e.to_string()),
         },
+    };
+
+    if let (Some(temp), Some(final_path)) = (temp_path.as_deref(), output_path.as_deref()) {
+        if result.ok {
+            // Success: promote the temp file. A rename failure here means
+            // ffmpeg claimed success without producing output — surface it
+            // instead of letting a phantom "done" through.
+            if let Err(e) = std::fs::rename(temp, final_path) {
+                let _ = std::fs::remove_file(temp);
+                result = ConvertResult {
+                    ok: false,
+                    code: None,
+                    signal: None,
+                    error: Some(format!("Output rename failed: {e}")),
+                };
+            }
+        } else {
+            // Failed or killed mid-run: no partial output for the user.
+            let _ = std::fs::remove_file(temp);
+        }
     }
+
+    result
 }
 
 /// `ffmpeg -hide_banner -encoders` -> encoder name list. Feeds the
@@ -902,6 +940,114 @@ Encoders:
             ffmpeg_path: Some(ffmpeg_path),
             args: vec![],
         }
+    }
+
+    fn convert_req_with_output(job_id: &str, ffmpeg_path: String, output: String) -> ConvertRequest {
+        ConvertRequest {
+            job_id: job_id.to_string(),
+            ffmpeg_path: Some(ffmpeg_path),
+            args: vec!["-i".into(), "input".into(), output],
+        }
+    }
+
+    #[cfg(unix)]
+    fn unique_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("zonevert-{}-{}", tag, std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Success path: fake ffmpeg "creates" the output, run() renames the temp
+    /// into place and leaves no temp behind.
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn atomic_output_renames_on_success() {
+        let app = tauri::test::mock_app();
+        let dir = unique_dir("atomic-ok");
+        let out = dir.join("out.mp4");
+        let out_str = out.to_string_lossy().to_string();
+        let script = write_script(
+            "touch-last.sh",
+            "for f in \"$@\"; do last=\"$f\"; done; touch \"$last\"; exit 0",
+        );
+        let r = run(
+            app.handle(),
+            &ProcessRegistry::default(),
+            convert_req_with_output("atomic-ok", script, out_str.clone()),
+        )
+        .await;
+        assert!(r.ok, "{:?}", r.error);
+        assert!(out.exists(), "renamed output must exist");
+        assert!(
+            !std::path::Path::new(&format!("{out_str}.zonevert-tmp")).exists(),
+            "temp must be gone after rename"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Failure path: no output file, and no partial temp left behind.
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn atomic_output_removes_temp_on_failure() {
+        let app = tauri::test::mock_app();
+        let dir = unique_dir("atomic-fail");
+        let out = dir.join("out.mp4");
+        let out_str = out.to_string_lossy().to_string();
+        let script = write_script("fail.sh", "exit 1");
+        let r = run(
+            app.handle(),
+            &ProcessRegistry::default(),
+            convert_req_with_output("atomic-fail", script, out_str.clone()),
+        )
+        .await;
+        assert!(!r.ok);
+        assert!(!out.exists());
+        assert!(
+            !std::path::Path::new(&format!("{out_str}.zonevert-tmp")).exists(),
+            "failed run must not leave a temp file"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Cancel path: a SIGKILLed run must not leave its partial temp file —
+    /// the user never sees a half-written MP4 in their output dir.
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn atomic_output_removes_partial_file_on_sigkill() {
+        let app = tauri::test::mock_app();
+        let dir = unique_dir("atomic-kill");
+        let out = dir.join("out.mp4");
+        let out_str = out.to_string_lossy().to_string();
+        let script = write_script(
+            "partial.sh",
+            "for f in \"$@\"; do last=\"$f\"; done; touch \"$last\"; trap '' TERM; sleep 60 >/dev/null 2>&1",
+        );
+        let registry = ProcessRegistry::default();
+        let registry_in_task = registry.clone();
+        let out_str_task = out_str.clone();
+        let handle_task = tokio::spawn(async move {
+            run(
+                app.handle(),
+                &registry_in_task,
+                convert_req_with_output("atomic-kill", script, out_str_task),
+            )
+            .await
+        });
+
+        let notify = wait_for_entry(&registry, "atomic-kill").await;
+        notify.notify_one();
+
+        let r = tokio::time::timeout(std::time::Duration::from_secs(20), handle_task)
+            .await
+            .expect("run must return after SIGKILL escalation")
+            .unwrap();
+        assert!(!r.ok);
+        assert!(
+            !std::path::Path::new(&format!("{out_str}.zonevert-tmp")).exists(),
+            "SIGKILLed partial temp must be cleaned up"
+        );
+        assert!(!out.exists(), "no final output from a killed run");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// >64KB of stderr, then exit 0. Without concurrent draining the OS pipe

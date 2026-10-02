@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   applyProgress,
   createQueue,
+  itemEtaSeconds,
   markResult,
   markRunning,
   markSkipped,
@@ -134,7 +135,7 @@ describe("queue-state", () => {
 });
 
 describe("applyProgress", () => {
-  const frame = { frame: 42, fps: 30, time: "00:00:01.00", sizeKb: 512, elapsed: null };
+  const frame = { frame: 42, fps: 30, time: "00:00:01.00", sizeKb: 512, elapsed: null, speed: null };
 
   test("applies only to running items", () => {
     const running = { id: "a", status: "running" } as any;
@@ -152,6 +153,37 @@ describe("applyProgress", () => {
     assert.equal(applyProgress(queue, "b", frame), false);
     assert.equal(applyProgress(queue, "missing", frame), false);
     assert.equal(done.progress, undefined);
+  });
+
+  test("computes percent when the item carries a duration", () => {
+    const video = { id: "v", status: "running", duration: 120 } as any;
+    applyProgress([video], "v", frame);
+    assert.equal(video.progressPercent, 1, "1s of 120s");
+  });
+
+  test("omits percent for unknown duration (indeterminate)", () => {
+    const video = { id: "v", status: "running" } as any;
+    applyProgress([video], "v", frame);
+    assert.equal(video.progress, frame);
+    assert.equal(video.progressPercent, undefined);
+  });
+});
+
+describe("itemEtaSeconds", () => {
+  const frame = { frame: 30, fps: 30, time: "00:00:30.00", sizeKb: 10, elapsed: null, speed: 2 };
+
+  test("computes from speed and duration while running", () => {
+    const item = { id: "a", status: "running", duration: 130, progress: frame } as any;
+    assert.equal(itemEtaSeconds(item), 50);
+  });
+
+  test("null when not running, no duration, or no speed", () => {
+    assert.equal(itemEtaSeconds({ status: "done", duration: 130, progress: frame } as any), null);
+    assert.equal(itemEtaSeconds({ status: "running", progress: frame } as any), null);
+    assert.equal(
+      itemEtaSeconds({ status: "running", duration: 130, progress: { ...frame, speed: null } } as any),
+      null,
+    );
   });
 });
 

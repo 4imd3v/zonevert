@@ -2,7 +2,7 @@
 // types added per migrate/07-svelte-frontend.md. Algorithms unchanged.
 
 import type { ConversionIntent, ConversionPlan } from "./conversion-plan";
-import type { ProgressFrame } from "./progress-parser";
+import { etaSeconds, progressPercent, type ProgressFrame } from "./progress-parser";
 
 export type QueueItemStatus = "pending" | "running" | "done" | "failed" | "canceled" | "skipped";
 
@@ -13,6 +13,11 @@ export interface QueueItem {
   outputPath: string;
   status: QueueItemStatus;
   progress?: ProgressFrame;
+  /** Total duration in seconds from the media probe (video items). */
+  duration?: number;
+  /** 0-100 once a progress frame with a timecode arrives; omitted when
+   *  duration is unknown (indeterminate progress). */
+  progressPercent?: number;
 }
 
 export interface QueueSummary {
@@ -180,7 +185,17 @@ export function applyProgress(
   const item = queue.find((q) => q.id === jobId);
   if (!item || item.status !== "running") return false;
   item.progress = frame;
+  const percent = progressPercent(frame.time, item.duration);
+  if (percent !== null) {
+    item.progressPercent = percent;
+  }
   return true;
+}
+
+/** Video ETA from the item's frame speed, or null when not computable. */
+export function itemEtaSeconds(item: QueueItem): number | null {
+  if (item.status !== "running") return null;
+  return etaSeconds(item.progress, item.duration);
 }
 
 /**

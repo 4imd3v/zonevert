@@ -71,7 +71,7 @@ Goal: `video-plan.ts` builds a tested argv from (probe summary × profile).
 - Tests: argv for every profile, no-audio, attached-pic rejection, remux
   detection, scaling math, crf mapping.
 
-## Phase 3 — Video-aware queue, progress, atomic output
+## Phase 3 — Video-aware queue, progress, atomic output — DONE
 
 Goal: long jobs are safe and honest.
 
