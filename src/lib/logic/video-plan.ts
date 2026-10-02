@@ -6,7 +6,7 @@
 import { dirname, extension, joinPath, stem } from "./conversion-plan";
 import type { MediaProbeResult } from "$lib/bindings";
 
-export type VideoProfile = "mp4-h264" | "webm-vp9" | "mp4-hevc";
+export type VideoProfile = "mp4-h264" | "webm-vp9" | "mp4-hevc" | "gif" | "webp-anim";
 export type VideoResolution = "source" | "1080p" | "720p" | "480p";
 export type VideoFps = "source" | 24 | 30 | 60;
 export type EncoderPreference = "auto" | "cpu";
@@ -68,13 +68,17 @@ export interface EncoderEntry {
 
 interface VideoCodecSpec {
   audioEncoder: string;
-  outputExt: string;
   audioArgs: string[];
+  outputExt: string;
   muxArgs: string[];
   /** codec names that allow `-c copy` remux into this profile's container. */
   remux: { video: string[]; audio: string[] };
   /** Preference order: hardware first, CPU last (CPU is always present). */
   encoders: EncoderEntry[];
+  /** false for animated-image outputs (GIF/WebP can't carry audio). */
+  audio: boolean;
+  /** true for GIF: needs the palettegen/paletteuse filter chain. */
+  gif: boolean;
 }
 
 const X264_ARGS = ["-preset", "medium", "-pix_fmt", "yuv420p"];
@@ -83,10 +87,12 @@ const X265_ARGS = ["-preset", "medium", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"]
 const VIDEO_SPECS: Record<VideoProfile, VideoCodecSpec> = {
   "mp4-h264": {
     audioEncoder: "aac",
-    outputExt: "mp4",
     audioArgs: ["-b:a", "128k"],
+    outputExt: "mp4",
     muxArgs: ["-movflags", "+faststart"],
     remux: { video: ["h264"], audio: ["aac"] },
+    audio: true,
+    gif: false,
     encoders: [
       {
         name: "h264_nvenc",
@@ -144,6 +150,8 @@ const VIDEO_SPECS: Record<VideoProfile, VideoCodecSpec> = {
     audioArgs: ["-b:a", "128k"],
     muxArgs: [],
     remux: { video: ["vp9"], audio: ["opus"] },
+    audio: true,
+    gif: false,
     // ponytail: no VP9 hardware entries in v1 — nvenc VP9 support is uneven
     // across GPU/driver/build combos; libvpx-vp9 covers every machine.
     // Upgrade path: add vp9_* entries once the validation probe can vouch.
@@ -164,6 +172,8 @@ const VIDEO_SPECS: Record<VideoProfile, VideoCodecSpec> = {
     audioArgs: ["-b:a", "128k"],
     muxArgs: ["-movflags", "+faststart"],
     remux: { video: ["hevc"], audio: ["aac"] },
+    audio: true,
+    gif: false,
     encoders: [
       {
         name: "hevc_nvenc",
@@ -215,6 +225,48 @@ const VIDEO_SPECS: Record<VideoProfile, VideoCodecSpec> = {
       },
     ],
   },
+  "gif": {
+    audioEncoder: "",
+    outputExt: "gif",
+    audioArgs: [],
+    muxArgs: [],
+    remux: { video: [], audio: [] },
+    audio: false,
+    gif: true,
+    encoders: [
+      {
+        name: "gif",
+        hw: false,
+        crfDefault: 23,
+        crfMax: 63,
+        // qualityArgs unused: GIF quality is the palette dither, built into
+        // the filter chain below (bayer_scale, lower = finer).
+        qualityArgs: () => [],
+        videoArgs: [],
+      },
+    ],
+  },
+  "webp-anim": {
+    audioEncoder: "",
+    outputExt: "webp",
+    audioArgs: [],
+    muxArgs: [],
+    remux: { video: [], audio: [] },
+    audio: false,
+    gif: false,
+    encoders: [
+      {
+        name: "libwebp_anim",
+        hw: false,
+        crfDefault: 23,
+        crfMax: 63,
+        // libwebp quality is 0-100 HIGHER=better; map the shared CRF slider
+        // (0-63 lower=better) onto 40-100 so the default lands at ~78.
+        qualityArgs: (c) => ["-q:v", String(40 + Math.round(((63 - c) * 60) / 63))],
+        videoArgs: ["-loop", "0"],
+      },
+    ],
+  },
 };
 
 const RESOLUTION_HEIGHT: Record<Exclude<VideoResolution, "source">, number> = {
@@ -239,17 +291,23 @@ export function createVideoIntent(options: {
   profile?: string;
   resolution?: string;
   fps?: number | string;
-  crf?: number;
+  crf?: number | string;
   encoder?: string;
   collisionMode?: string;
   outputDir?: string;
 } = {}): VideoIntent {
   const profile = normalizeProfile(options.profile);
+  // crf 0 is valid and falsy — `Number(x) || default` would swallow it.
+  const crfRaw = options.crf;
+  const crfParsed =
+    crfRaw == null || crfRaw === "" ? Number.NaN : Number(crfRaw);
   return {
     profile,
     resolution: normalizeResolution(options.resolution),
     fps: normalizeFps(options.fps),
-    crf: clamp(Number(options.crf) || cpuEncoder(specFor(profile)).crfDefault, 0, 63),
+    crf: Number.isFinite(crfParsed)
+      ? clamp(crfParsed, 0, 63)
+      : cpuEncoder(specFor(profile)).crfDefault,
     encoder: options.encoder === "cpu" ? "cpu" : "auto",
     collisionMode: options.collisionMode === "skip" ? "skip" : "overwrite",
     outputDir: String(options.outputDir || ""),
@@ -258,7 +316,9 @@ export function createVideoIntent(options: {
 
 function normalizeProfile(value: unknown): VideoProfile {
   const v = String(value || "");
-  return v === "webm-vp9" || v === "mp4-hevc" ? v : DEFAULT_PROFILE;
+  return v === "webm-vp9" || v === "mp4-hevc" || v === "gif" || v === "webp-anim"
+    ? v
+    : DEFAULT_PROFILE;
 }
 
 const RESOLUTIONS = new Set<string>(["source", "1080p", "720p", "480p"]);
@@ -385,47 +445,76 @@ export function planVideoConversion(
   const wantsTransform = intent.resolution !== "source" || intent.fps !== "source";
   const remuxOnly = !wantsTransform && canRemux(probe, spec);
 
+  // A CPU encoder that this FFmpeg build doesn't ship (libwebp_anim in LGPL-only
+  // builds) fails at the END of a long queue — warn at plan time instead.
+  if (!remuxOnly && env.availableEncoders) {
+    const available = new Set(env.availableEncoders);
+    if (available.size > 0 && !available.has(entry.name)) {
+      warnings.push(
+        `Your FFmpeg build has no ${entry.name} encoder — ${spec.outputExt} output will fail.`,
+      );
+    }
+  }
   const args = ["-hide_banner", intent.collisionMode === "skip" ? "-n" : "-y", "-i", file.path];
-  // 0:a:0? — optional audio map: video without an audio stream must still work.
-  args.push("-map", "0:v:0", "-map", "0:a:0?");
+  // Animated-image outputs carry no audio: map video only, -an as insurance.
+  if (spec.gif) {
+    // No -map for GIF: the filter_complex graph is the video source (a
+    // -map 0:v:0 here would starve the graph's unlabeled input pad).
+    args.push("-an");
+  } else if (spec.audio) {
+    // 0:a:0? — optional audio map: video without an audio stream must still work.
+    args.push("-map", "0:v:0", "-map", "0:a:0?");
+  } else {
+    args.push("-map", "0:v:0", "-an");
+  }
 
   if (remuxOnly) {
     args.push("-c", "copy");
     args.push(...spec.muxArgs);
   } else {
-    if (intent.resolution !== "source") {
-      const target = RESOLUTION_HEIGHT[intent.resolution];
-      args.push("-vf", `scale=-2:${target}`);
-      if (video.height! < target) {
-        warnings.push(`Upscaling from ${video.height}p to ${target}p will not improve quality.`);
-      }
-      if (entry.hw) {
-        warnings.push("Scaling runs on the CPU even with a hardware encoder — expect slower encodes.");
-      }
-    }
-    if (intent.fps !== "source") {
-      args.push("-r", String(intent.fps));
-      warnings.push(`Converting to ${intent.fps} fps re-times the whole video and slows encoding.`);
-    }
-    const crf = clamp(Math.round(intent.crf), 0, entry.crfMax);
-    args.push("-c:v", entry.name);
-    args.push(...entry.qualityArgs(crf));
-    args.push(...entry.videoArgs);
-    args.push("-c:a", spec.audioEncoder);
-    args.push(...spec.audioArgs);
-    args.push(...spec.muxArgs);
-
     const targetH =
       intent.resolution !== "source" ? RESOLUTION_HEIGHT[intent.resolution] : null;
     const downscaling = targetH != null && targetH < video.height!;
-    if (
-      !downscaling &&
-      crf >= LOOSE_CRF &&
-      EFFICIENT_SOURCES.has(video.codecName)
-    ) {
-      warnings.push(
-        `Source is already ${video.codecName} — re-encoding at CRF ${crf} may produce a larger file than the source. Raise the CRF (lower quality) if you want a smaller file.`,
-      );
+    const crf = clamp(Math.round(intent.crf), 0, entry.crfMax);
+
+    if (spec.gif) {
+      // Palette pipeline (fps + scale + palettegen/paletteuse) in one graph.
+      args.push("-filter_complex", gifFilterChain(intent, crf));
+    } else {
+      if (targetH != null) {
+        args.push("-vf", `scale=-2:${targetH}`);
+      }
+      if (intent.fps !== "source") {
+        args.push("-r", String(intent.fps));
+        warnings.push(`Converting to ${intent.fps} fps re-times the whole video and slows encoding.`);
+      }
+    }
+
+    args.push("-c:v", entry.name);
+    args.push(...entry.qualityArgs(crf));
+    args.push(...entry.videoArgs);
+    if (spec.audio) {
+      args.push("-c:a", spec.audioEncoder);
+      args.push(...spec.audioArgs);
+    }
+    args.push(...spec.muxArgs);
+
+    if (targetH != null && !downscaling) {
+      warnings.push(`Upscaling from ${video.height}p to ${targetH}p will not improve quality.`);
+    }
+    if (targetH != null && entry.hw && !spec.gif) {
+      warnings.push("Scaling runs on the CPU even with a hardware encoder — expect slower encodes.");
+    }
+    if (EFFICIENT_SOURCES.has(video.codecName)) {
+      if (spec.gif) {
+        warnings.push(
+          `Animated GIF is far less efficient than ${video.codecName} — the output will usually be much larger. Raise the quality slider (lower quality) or pick a lower frame rate for smaller files.`,
+        );
+      } else if (crf >= LOOSE_CRF) {
+        warnings.push(
+          `Source is already ${video.codecName} — re-encoding at CRF ${crf} may produce a larger file than the source. Raise the CRF (lower quality) if you want a smaller file.`,
+        );
+      }
     }
   }
 
@@ -489,6 +578,23 @@ export function videoOutputPath(
   const sameExt = extension(name) === spec.outputExt;
   const outName = `${stem(name)}${sameExt ? "-converted" : ""}.${spec.outputExt}`;
   return joinPath(intent.outputDir || dirname(file.path), outName);
+}
+
+/**
+ * GIF profile: fps + scale + palettegen/paletteuse in one filter_complex.
+ * Without the palette pair, ffmpeg's gif encoder dithers colors into
+ * garbage. Source input caps at 12 fps / 480px wide (GIFs explode past
+ * that); explicit resolution/fps choices from the intent win.
+ */
+function gifFilterChain(intent: VideoIntent, crf: number): string {
+  const fps = intent.fps !== "source" ? String(intent.fps) : "12";
+  const scale =
+    intent.resolution === "source"
+      ? "scale=480:-2:flags=lanczos"
+      : `scale=-2:${RESOLUTION_HEIGHT[intent.resolution]}:flags=lanczos`;
+  // bayer_scale 1 (finest) .. 5 (coarsest): CRF maps onto it directly.
+  const bayer = clamp(1 + Math.round((crf * 4) / 63), 1, 5);
+  return `fps=${fps},${scale},split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=${bayer}`;
 }
 
 function specFor(profile: VideoProfile): VideoCodecSpec {

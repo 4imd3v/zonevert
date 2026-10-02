@@ -6,11 +6,22 @@
     { value: "mp4-h264", label: "MP4 · H.264 (universal)" },
     { value: "webm-vp9", label: "WebM · VP9 (web)" },
     { value: "mp4-hevc", label: "MP4 · HEVC (compact)" },
+    { value: "gif", label: "GIF (animated image, no audio)" },
+    { value: "webp-anim", label: "WebP (animated, no audio)" },
   ];
   const CRF_MAX: Record<string, number> = {
     "mp4-h264": 51,
     "webm-vp9": 63,
     "mp4-hevc": 51,
+    gif: 63,
+    "webp-anim": 63,
+  };
+  const QUALITY_HINT: Record<string, string> = {
+    "mp4-h264": "Lower = better quality, larger file · 0–51 for this profile",
+    "webm-vp9": "Lower = better quality, larger file · 0–63 for this profile",
+    "mp4-hevc": "Lower = better quality, larger file · 0–51 for this profile",
+    gif: "Dithering quality — lower = finer detail, larger file · GIF caps source at 12 fps / 480px",
+    "webp-anim": "Lower = more compression, smaller files (worse quality) · maps to WebP's 0–100 scale, default ≈ 78",
   };
   const HW_LABEL: Record<string, string> = {
     ready: "ready",
@@ -81,7 +92,7 @@
   <label class="range-field">
     <span>Quality (CRF) <strong>{appState.settings.videoCrf}</strong></span>
     <input type="range" min="0" max={crfMax} bind:value={appState.settings.videoCrf} oninput={() => appState.persistSettings()} />
-    <small class="quality-hint">Lower = better quality, larger file · 0–{crfMax} for this profile</small>
+    <small class="quality-hint">{QUALITY_HINT[appState.settings.videoProfile] ?? ""}</small>
   </label>
 
   {#if hwStatus.length}

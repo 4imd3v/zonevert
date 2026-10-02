@@ -155,6 +155,8 @@ can be mixed in one queue — each file is planned with its own profile.
 | MP4 · H.264 | `.mp4` | H.264, yuv420p | AAC | Safest default; plays everywhere |
 | WebM · VP9 | `.webm` | VP9 | Opus | Good for web playback; slower encode |
 | MP4 · HEVC | `.mp4` | HEVC, yuv420p, hvc1 tag | AAC | Smaller files; less universal playback |
+| GIF (animated) | `.gif` | GIF | — | Animated image; palette-based, no audio |
+| WebP (animated) | `.webp` | WebP | — | Animated image; loops forever, no audio |
 
 Controls: resolution (source / 1080p / 720p / 480p, `scale=-2:H`), frame rate
 (source / 24 / 30 / 60), and a CRF quality slider (0–51, or 0–63 for VP9;
@@ -164,6 +166,17 @@ quality is loose — re-encoding then often produces a larger file than the
 source. The Video tab and each queue row also show an approximate output size
 (source bitrate scaled by resolution/fps ratio; exact for remuxes, a ballpark
 for CRF re-encodes).
+
+### Animated images
+
+Both animated-image outputs drop audio (GIF and WebP cannot carry it), and GIF
+uses the `palettegen`/`paletteuse` filter chain so colors survive — without it,
+GIF output is dithered garbage. GIF caps source input at 12 fps / 480 px wide
+(GIFs explode past that) unless you pick a different resolution or frame rate;
+the quality slider then controls palette dithering. Animated WebP maps the
+slider onto WebP's 0–100 quality scale and loops forever (`-loop 0`). Both
+formats are far less efficient than their video sources — expect large
+outputs, and Zonevert says so before the queue runs.
 
 ### Remuxing
 

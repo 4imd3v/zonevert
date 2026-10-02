@@ -366,3 +366,98 @@ describe("video-plan size estimates", () => {
     assert.equal(planVideoConversion(file, { ok: false }, createVideoIntent()).estimatedBytes, undefined);
   });
 });
+
+describe("video-plan animated-image profiles", () => {
+  test("gif argv: palette filter chain, no audio, fps+size caps", () => {
+    const plan = planVideoConversion(file, h264Probe, createVideoIntent({ profile: "gif" }));
+    assert.equal(plan.ok, true);
+    assert.equal(plan.outputExt, "gif");
+    assert.equal(plan.chosenVideoEncoder, "gif");
+    assert.ok(plan.args.includes("-an"), "animated image has no audio");
+    assert.ok(!plan.args.includes("-map"), "gif graph is the video source — no -map");
+    assert.ok(!plan.args.some((a) => a === "aac" || a === "libopus"), "no audio encoder args");
+    const fc = plan.args[plan.args.indexOf("-filter_complex") + 1];
+    assert.match(fc, /palettegen/);
+    assert.match(fc, /paletteuse/);
+    assert.match(fc, /fps=12/, "source input caps at 12 fps");
+    assert.match(fc, /scale=480:-2/, "source input caps at 480px wide");
+    assert.equal(plan.args.at(-1), "/in/clip.gif");
+  });
+
+  test("gif honors explicit fps and resolution, maps crf to dither", () => {
+    const plan = planVideoConversion(
+      file, h264Probe,
+      createVideoIntent({ profile: "gif", fps: 24, resolution: "720p", crf: 0 }),
+    );
+    const fc = plan.args[plan.args.indexOf("-filter_complex") + 1];
+    assert.match(fc, /fps=24/);
+    assert.match(fc, /scale=-2:720/);
+    assert.match(fc, /bayer_scale=1/, "crf 0 = finest dither");
+  });
+
+  test("gif warns about its inefficiency vs an efficient source", () => {
+    const plan = planVideoConversion(file, h264Probe, createVideoIntent({ profile: "gif" }));
+    assert.ok(plan.warnings.some((w) => w.includes("far less efficient than h264")));
+    const vp8 = { ok: true, duration: 5, video: { codecType: "video", codecName: "vp8", width: 640, height: 480 } } as MediaProbeResult;
+    const legacy = planVideoConversion(file, vp8, createVideoIntent({ profile: "gif" }));
+    assert.ok(!legacy.warnings.some((w) => w.includes("far less efficient")));
+  });
+
+  test("webp-anim argv: libwebp_anim, -loop 0, quality mapped to -q:v", () => {
+    const plan = planVideoConversion(file, vp9Probe, createVideoIntent({ profile: "webp-anim" }));
+    assert.equal(plan.ok, true);
+    assert.equal(plan.outputExt, "webp");
+    assert.equal(plan.chosenVideoEncoder, "libwebp_anim");
+    assert.ok(plan.args.includes("libwebp_anim"));
+    assert.ok(plan.args.includes("-loop"));
+    assert.ok(plan.args.includes("-an"));
+    // crf 23 -> q 78 on the 40-100 webp scale
+    assert.ok(plan.args.includes("78"), JSON.stringify(plan.args));
+    // no audio encoder despite the source having opus audio
+    assert.ok(!plan.args.includes("libopus"));
+    assert.equal(plan.args.at(-1), "/in/clip.webp");
+  });
+
+  test("webp-anim scales/fps via -vf/-r like the video profiles", () => {
+    const plan = planVideoConversion(
+      file, h264Probe,
+      createVideoIntent({ profile: "webp-anim", resolution: "480p", fps: 30 }),
+    );
+    assert.ok(plan.args.includes("scale=-2:480"));
+    assert.ok(plan.args.includes("-r"));
+    assert.ok(!plan.args.includes("-filter_complex"), "webp-anim doesn't need the palette chain");
+  });
+
+  test("warns when the build lacks libwebp_anim", () => {
+    const plan = planVideoConversion(
+      file, h264Probe,
+      createVideoIntent({ profile: "webp-anim" }),
+      { availableEncoders: ["libx264", "gif"], validatedEncoders: [] },
+    );
+    assert.ok(plan.warnings.some((w) => w.includes("no libwebp_anim encoder")));
+  });
+
+  test("same-extension webp input gets the -converted suffix", () => {
+    const plan = planVideoConversion(
+      { path: "/in/anim.webp", name: "anim.webp" }, h264Probe,
+      createVideoIntent({ profile: "webp-anim" }),
+    );
+    assert.equal(plan.outputPath, "/in/anim-converted.webp");
+  });
+});
+
+describe("video-plan crf zero regression", () => {
+  test("crf 0 survives normalization (was swallowed by falsy default)", () => {
+    assert.equal(createVideoIntent({ crf: 0 }).crf, 0);
+    assert.equal(createVideoIntent({ crf: "0" as any }).crf, 0);
+    assert.equal(createVideoIntent({ profile: "webm-vp9", crf: 0 }).crf, 0);
+    // absent/invalid still take the profile default
+    assert.equal(createVideoIntent({}).crf, 23);
+    assert.equal(createVideoIntent({ crf: "abc" as any }).crf, 23);
+    assert.equal(createVideoIntent({ profile: "webm-vp9" }).crf, 31);
+    // and it reaches the encoder args (h264 probe forces a re-encode)
+    const plan = planVideoConversion(file, h264Probe, createVideoIntent({ profile: "webm-vp9", crf: 0 }));
+    assert.equal(plan.remuxOnly, false);
+    assert.ok(plan.args.includes("0"));
+  });
+});
