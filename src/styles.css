@@ -1138,3 +1138,19 @@ svg {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Per-item video progress bar (queue rows). */
+.queue-item-progress {
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--border, rgba(127, 127, 127, 0.25));
+  overflow: hidden;
+}
+
+.queue-item-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent, currentColor);
+  transition: width 0.2s ease;
+}

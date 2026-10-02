@@ -87,7 +87,7 @@ Goal: long jobs are safe and honest.
 - Tests: timecode→seconds, percent clamps, finalizing summary counts,
   rename/cleanup Rust integration test with fake ffmpeg.
 
-## Phase 4 — Video intake & UI
+## Phase 4 — Video intake & UI — DONE
 
 Goal: users can add, inspect, configure, and convert videos.
 

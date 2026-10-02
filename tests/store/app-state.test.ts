@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { appState } from "$lib/stores/app-state.svelte";
+import type { MediaProbeResult } from "$lib/bindings";
 
 // ---- Tauri API mock (hoisted so the factory can close over it) ----
 const h = vi.hoisted(() => ({
@@ -19,6 +20,12 @@ const h = vi.hoisted(() => ({
   getFileSize: vi.fn(async (_p: string) => ({ ok: true, size: 0 })),
   getThumbnail: vi.fn(async (_p: string) => ({ ok: true, dataUrl: "data:," })),
   probeImage: vi.fn(async (_p: string) => ({ ok: true, width: 10, height: 10 })),
+  probeMedia: vi.fn(async (_p: string): Promise<MediaProbeResult> => ({ ok: false, error: "no ffprobe" })),
+  // mirrors the real extension check for the mock module surface
+  hasVideoExtension: (name: string) =>
+    [".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".flv", ".wmv", ".ts", ".m2ts", ".mpeg", ".mpg", ".3gp", ".ogv"].some((e) =>
+      name.toLowerCase().endsWith(e),
+    ),
   saveFile: vi.fn(async (_payload: unknown) => ({
     ok: true,
     filePath: "/tmp/x",
@@ -300,5 +307,79 @@ describe("history", () => {
     });
     expect(appState.settings.quality).toBe(77);
     expect(appState.settings.format).toBe("webp"); // default preserved
+  });
+});
+
+describe("video intake + queue", () => {
+  const videoProbe: MediaProbeResult = {
+    ok: true,
+    duration: 12.345,
+    video: { codecType: "video", codecName: "h264", width: 1920, height: 1080, pixFmt: "yuv420p", frameRate: 30 },
+    audio: { codecType: "audio", codecName: "aac", sampleRate: 44100, channels: 2 },
+  };
+
+  it("classifies dropped videos and summarizes them", async () => {
+    h.probeMedia.mockImplementation(async () => videoProbe);
+    appState.addDroppedFiles(["/in/clip.mp4"]);
+
+    await waitFor(() => appState.isVideo("/in/clip.mp4"));
+    expect(appState.videoSummary("/in/clip.mp4")).toContain("1920×1080");
+    expect(appState.videoSummary("/in/clip.mp4")).toContain("h264");
+  });
+
+  it("plans a mixed image+video queue with each kind's intent", async () => {
+    h.probeMedia.mockImplementation(async () => videoProbe);
+    h.convert.mockImplementation(async () => ({ ok: true }));
+    appState.files = [{ path: "/in/a.png", name: "a.png" }];
+    appState.outputDir = "/out";
+    appState.settings.videoProfile = "webm-vp9";
+    appState.addDroppedFiles(["/in/clip.mp4"]);
+    await waitFor(() => appState.isVideo("/in/clip.mp4"));
+
+    await appState.runConversion();
+
+    const videoItem = appState.queue.find((i) => i.file.path === "/in/clip.mp4")!;
+    expect(videoItem.status).toBe("done");
+    expect(videoItem.args).toContain("libvpx-vp9");
+    expect(videoItem.duration).toBe(12.345);
+    expect(videoItem.outputPath).toBe("/out/clip.webm");
+    const imageItem = appState.queue.find((i) => i.file.path === "/in/a.png")!;
+    expect(imageItem.args).toContain("libwebp");
+    expect(imageItem.duration).toBeUndefined();
+  });
+
+  it("excludes unreadable videos from the queue instead of failing mid-run", async () => {
+    h.probeMedia.mockImplementation(async () => videoProbe);
+    appState.addDroppedFiles(["/in/clip.mp4"]);
+    await waitFor(() => appState.isVideo("/in/clip.mp4"));
+    // probe cache lost between ingest and run (e.g. re-probe race)
+    (appState as unknown as { videoMeta: Map<string, unknown> }).videoMeta = new Map();
+
+    await appState.runConversion();
+
+    expect(appState.queue).toHaveLength(0);
+    expect(appState.logs.join("")).toContain("Skipped");
+  });
+
+  it("computes percent progress and ETA for running video items", async () => {
+    h.probeMedia.mockImplementation(async () => ({ ...videoProbe, duration: 120 }));
+    let release!: (r: { ok: boolean }) => void;
+    h.convert.mockImplementation(() => new Promise((r) => { release = r; }));
+    appState.addDroppedFiles(["/in/clip.mp4"]);
+    await waitFor(() => appState.isVideo("/in/clip.mp4"));
+
+    const p = appState.runConversion();
+    await waitFor(() => appState.queue[0]?.status === "running");
+    logCallback!({
+      jobId: appState.queue[0].id,
+      stream: "stderr",
+      text: "frame=  60 fps= 30 q=28.0 size=     256kB time=00:00:30.00 bitrate=1024.0kbits/s speed=2x",
+    });
+
+    expect(appState.queue[0].progressPercent).toBe(25);
+    expect(appState.queue[0].progress?.speed).toBe(2);
+
+    release({ ok: true });
+    await p;
   });
 });

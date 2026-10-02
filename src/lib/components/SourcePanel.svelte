@@ -32,8 +32,8 @@
   <button class="drop-target" type="button" onclick={() => appState.addFiles()}>
     <span class="drop-icon" aria-hidden="true"><Icon name="image" /></span>
     <span class="drop-copy">
-      <strong>Drop images here</strong>
-      <small>or click to browse · JPG, PNG, WebP, AVIF, TIFF, BMP, GIF</small>
+      <strong>Drop images or videos here</strong>
+      <small>or click to browse · JPG, PNG, WebP, AVIF, TIFF · MP4, MKV, WebM, MOV, AVI</small>
     </span>
   </button>
 
@@ -41,6 +41,7 @@
     {#if !isEmpty}
       {#each appState.files as file, index (file.path)}
         {@const meta = appState.imageMeta.get(file.path)}
+        {@const isVideo = appState.isVideo(file.path)}
         <div
           class="file-row"
           class:file-row--selected={appState.selectedFileIndex === index}
@@ -58,7 +59,11 @@
           <img class="file-thumb" src={appState.thumbnails.get(file.path)} alt="" />
           <div class="file-info">
             <strong>{file.name || basename(file.path)}</strong>
-            <span>{extension(file.name || file.path).toUpperCase() || "IMAGE"}{meta ? ` · ${meta}` : ""}</span>
+            {#if isVideo}
+              <span>VIDEO · {appState.videoSummary(file.path)}</span>
+            {:else}
+              <span>{extension(file.name || file.path).toUpperCase() || "IMAGE"}{meta ? ` · ${meta}` : ""}</span>
+            {/if}
           </div>
           <div class="file-row-buttons">
             <button

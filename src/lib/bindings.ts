@@ -100,6 +100,18 @@ const IMAGE_EXTENSIONS = [
   "jpeg", "jpg", "png", "tif", "tiff", "webp",
 ];
 
+// Conservative accept-list: containers a stock FFmpeg build demuxes. Anything
+// else the user can still force via "All files" — probeMedia decides.
+export const VIDEO_EXTENSIONS = [
+  "mp4", "m4v", "mov", "mkv", "webm", "avi", "flv", "wmv",
+  "ts", "m2ts", "mpeg", "mpg", "3gp", "ogv",
+];
+
+export function hasVideoExtension(name: string): boolean {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  return VIDEO_EXTENSIONS.includes(ext);
+}
+
 function basename(p: string): string {
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return i === -1 ? p : p.slice(i + 1);
@@ -118,7 +130,7 @@ export async function selectImages(): Promise<SelectedImage[]> {
     multiple: true,
     directory: false,
     filters: [
-      { name: "Images", extensions: IMAGE_EXTENSIONS },
+      { name: "Images & videos", extensions: [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS] },
       { name: "All files", extensions: ["*"] },
     ],
   });

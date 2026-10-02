@@ -47,6 +47,7 @@ export function createQueue(
       args: plan.args,
       outputPath: plan.outputPath,
       status: "pending" as QueueItemStatus,
+      ...(plan.duration != null ? { duration: plan.duration } : {}),
     };
   });
 

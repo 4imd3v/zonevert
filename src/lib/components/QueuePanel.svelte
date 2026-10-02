@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appState } from "$lib/stores/app-state.svelte";
-  import { statusLabel } from "$lib/logic/queue-state";
+  import { itemEtaSeconds, statusLabel, type QueueItem } from "$lib/logic/queue-state";
+  import { formatDuration } from "$lib/logic/media-probe";
   import { basename } from "$lib/logic/conversion-plan";
   import Icon from "./Icon.svelte";
 
@@ -14,13 +15,14 @@
   let showRetry = $derived(appState.hasFailed && !appState.isConverting);
   let convertLabel = $derived(appState.isConverting ? "Converting" : "Convert");
 
-  function formatItemProgress(item: { status: string; progress?: { frame: number | null; fps: number | null; time: string | null; elapsed: string | null } }): string {
+  function formatItemProgress(item: QueueItem): string {
     if (item.status !== "running" || !item.progress) return "";
     const parts: string[] = [];
-    if (item.progress.frame !== null) parts.push(`frame ${item.progress.frame}`);
-    if (item.progress.fps !== null) parts.push(`${item.progress.fps} fps`);
     if (item.progress.time) parts.push(item.progress.time);
+    if (item.progress.speed !== null) parts.push(`${item.progress.speed}x`);
     if (item.progress.elapsed) parts.push(`elapsed ${item.progress.elapsed}`);
+    const etaSec = itemEtaSeconds(item);
+    if (etaSec != null) parts.push(`~${formatDuration(etaSec)} left`);
     return parts.join(" · ");
   }
 </script>
@@ -74,6 +76,18 @@
             <strong>{item.file.name || basename(item.file.path)}</strong>
             <span>{item.outputPath}</span>
             <span class="queue-progress-text">{formatItemProgress(item)}</span>
+            {#if item.status === "running" && item.progressPercent != null}
+              <div
+                class="queue-item-progress"
+                role="progressbar"
+                aria-label="{item.file.name} progress"
+                aria-valuenow={item.progressPercent}
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <span style="width: {item.progressPercent}%"></span>
+              </div>
+            {/if}
           </div>
           <span>{statusLabel(item.status)}</span>
         </div>

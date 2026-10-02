@@ -39,6 +39,8 @@ export interface ConversionPlan {
   file: { path: string; name: string };
   outputPath: string;
   args: string[];
+  /** Total duration in seconds (video plans) — drives queue percent/ETA. */
+  duration?: number;
 }
 
 interface CreateIntentOptions {

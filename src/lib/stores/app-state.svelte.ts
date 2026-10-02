@@ -1,8 +1,10 @@
 import {
   getPlatform,
+  hasVideoExtension,
   onLog,
   probeFfmpeg as probeFfmpegBinding,
   probeEncoders,
+  probeMedia,
   selectImages,
   selectOutputDir,
   convert,
@@ -15,18 +17,29 @@ import {
   showNotification,
   type ConvertResult,
   type LogEntry,
+  type MediaProbeResult,
   type SelectedImage,
 } from "$lib/bindings";
 import {
+  basename,
   createConversionIntent,
-  planConversion,
+  extension,
   formatCommand,
   missingEncoderWarning,
+  planConversion,
   PRESET_DEFAULTS,
   type ConversionIntent,
+  type ConversionPlan,
 } from "$lib/logic/conversion-plan";
 import {
+  createVideoIntent,
+  planVideoConversion,
+  type VideoIntent,
+} from "$lib/logic/video-plan";
+import { formatProbeSummary } from "$lib/logic/media-probe";
+import {
   createQueue,
+  itemEtaSeconds,
   summarizeQueue,
   markRunning,
   markResult,
@@ -62,6 +75,10 @@ export interface Settings {
   inputArgs: string;
   filter: string;
   outputArgs: string;
+  videoProfile: string;
+  videoResolution: string;
+  videoFps: string;
+  videoCrf: number;
 }
 
 export interface HistoryEntry {
@@ -95,6 +112,10 @@ const DEFAULT_SETTINGS: Settings = {
   inputArgs: "",
   filter: "",
   outputArgs: "",
+  videoProfile: "mp4-h264",
+  videoResolution: "source",
+  videoFps: "source",
+  videoCrf: 23,
 };
 
 class AppState {
@@ -103,6 +124,9 @@ class AppState {
   selectedFileIndex = $state(-1);
   thumbnails = $state.raw<Map<string, string>>(new Map());
   imageMeta = $state.raw<Map<string, string>>(new Map());
+  // paths probeMedia classified as real video + their probe summaries
+  videoFiles = $state.raw<Set<string>>(new Set());
+  videoMeta = $state.raw<Map<string, MediaProbeResult>>(new Map());
 
   // ---- output settings ----
   outputDir = $state("");
@@ -188,6 +212,51 @@ class AppState {
     });
   }
 
+  get videoIntent(): VideoIntent {
+    const s = this.settings;
+    return createVideoIntent({
+      profile: s.videoProfile,
+      resolution: s.videoResolution,
+      fps: s.videoFps,
+      crf: s.videoCrf,
+      collisionMode: s.collisionMode,
+      outputDir: this.outputDir,
+    });
+  }
+
+  /** Plan one file through the image or video planner by classification. */
+  planForFile(file: SelectedImage, index: number): ConversionPlan {
+    if (this.videoFiles.has(file.path)) {
+      const probe = this.videoMeta.get(file.path);
+      const plan = planVideoConversion(file, probe, this.videoIntent);
+      return {
+        file,
+        args: plan.args,
+        outputPath: plan.outputPath,
+        // drives percent progress + ETA in the queue UI
+        duration: probe?.duration,
+      };
+    }
+    return planConversion(file, this.intent, index);
+  }
+
+  isVideo(path: string): boolean {
+    return this.videoFiles.has(path);
+  }
+
+  videoSummary(path: string): string {
+    const probe = this.videoMeta.get(path);
+    return probe ? formatProbeSummary(probe) : "probing…";
+  }
+
+  /** Warnings (or rejection) for the first queued video, for the Video tab. */
+  get videoWarnings(): string[] {
+    const first = this.files.find((f) => this.videoFiles.has(f.path));
+    if (!first) return [];
+    const plan = planVideoConversion(first, this.videoMeta.get(first.path), this.videoIntent);
+    return plan.ok ? plan.warnings : [plan.rejection ?? "This file cannot be converted."];
+  }
+
   buildCommand(file?: SelectedImage): string {
     const intent = this.intent;
     const target = file ?? this.files[0];
@@ -199,7 +268,7 @@ class AppState {
       );
     }
 
-    const plan = planConversion(target, intent);
+    const plan = this.planForFile(target, this.files.indexOf(target));
     return formatCommand([intent.ffmpegPath, ...plan.args], { platform: this.platform });
   }
 
@@ -237,9 +306,9 @@ class AppState {
   }
 
   addDroppedFiles(paths: string[]) {
-    const imgExt = /\.(apng|avif|bmp|gif|heic|heif|jpe?g|png|tiff?|webp)$/i;
+    const mediaExt = /\.(apng|avif|bmp|gif|heic|heif|jpe?g|mpe?g|png|tiff?|webp|mp4|m4v|mov|mkv|avi|flv|wmv|ts|m2ts|3gp|ogv)$/i;
     const files: SelectedImage[] = paths
-      .filter((p) => imgExt.test(p))
+      .filter((p) => mediaExt.test(p))
       .map((p) => ({ path: p, name: p.split(/[/\\]/).pop()! }));
     if (files.length) {
       this.files = [...this.files, ...this.dedupe(files)];
@@ -263,10 +332,16 @@ class AppState {
     if (removed) {
       const thumbs = new Map(this.thumbnails);
       const meta = new Map(this.imageMeta);
+      const videos = new Set(this.videoFiles);
+      const videoMeta = new Map(this.videoMeta);
       thumbs.delete(removed.path);
       meta.delete(removed.path);
+      videos.delete(removed.path);
+      videoMeta.delete(removed.path);
       this.thumbnails = thumbs;
       this.imageMeta = meta;
+      this.videoFiles = videos;
+      this.videoMeta = videoMeta;
     }
     this.files = this.files.filter((_, i) => i !== index);
   }
@@ -277,19 +352,40 @@ class AppState {
     this.selectedFileIndex = -1;
     this.thumbnails = new Map();
     this.imageMeta = new Map();
+    this.videoFiles = new Set();
+    this.videoMeta = new Map();
   }
 
   private async loadThumbnailsAndMeta() {
-    // Assign per item as each completes: concurrent calls can't overwrite
-    // each other's partial results, and thumbnails appear progressively.
+    // One pass per file: video candidates (video/unknown extension) get a full
+    // probeMedia — which also classifies them; images keep the dimension
+    // probe. Thumbnails come from ffmpeg's first frame for both kinds.
     const worker = async (file: SelectedImage) => {
-      const [thumb, dims] = await Promise.all([
+      const ext = extension(file.name || file.path);
+      const isVideoCandidate = hasVideoExtension(file.name || file.path) || ext === "";
+      const [thumb, probe] = await Promise.all([
         getThumbnail(file.path),
-        probeImage(file.path, this.settings.ffmpegPath),
+        isVideoCandidate
+          ? probeMedia(file.path, this.settings.ffmpegPath)
+          : Promise.resolve(null),
       ]);
       if (thumb.ok && thumb.dataUrl) {
         this.thumbnails = new Map(this.thumbnails).set(file.path, thumb.dataUrl);
       }
+      if (probe) {
+        if (probe.ok && probe.video) {
+          this.videoFiles = new Set(this.videoFiles).add(file.path);
+          this.videoMeta = new Map(this.videoMeta).set(file.path, probe);
+        } else if (!probe.ok) {
+          this.appendLog(
+            `Could not read ${file.name || file.path}: ${probe.error || "unknown error"}\n`,
+          );
+        }
+        // probe ok but no video stream: mislabeled image/audio file — stays
+        // in the image flow (its ffmpeg run will surface a real error).
+        return;
+      }
+      const dims = await probeImage(file.path, this.settings.ffmpegPath);
       if (dims.ok && dims.width && dims.height) {
         this.imageMeta = new Map(this.imageMeta).set(file.path, `${dims.width}×${dims.height}`);
       }
@@ -335,8 +431,7 @@ class AppState {
   async convertSingleFile(index: number) {
     if (this.isConverting || !this.files[index]) return;
     const file = this.files[index];
-    const intent = this.intent;
-    const plan = planConversion(file, intent, index);
+    const plan = this.planForFile(file, index);
 
     this.queue = [{
       id: crypto.randomUUID(),
@@ -344,6 +439,7 @@ class AppState {
       args: plan.args,
       outputPath: plan.outputPath,
       status: "pending" as const,
+      ...(plan.duration != null ? { duration: plan.duration } : {}),
     }];
     await this.runConversion(true);
   }
@@ -354,8 +450,21 @@ class AppState {
     const intent = this.intent;
 
     if (!retry) {
-      this.queue = createQueue(this.files, intent, (file, intent, index) =>
-        planConversion(file, intent, index),
+      // Video files whose plan rejects (probe cache gone, path collision)
+      // are excluded up front with a log line instead of failing mid-queue.
+      const runnable: SelectedImage[] = [];
+      for (const file of this.files) {
+        if (this.videoFiles.has(file.path)) {
+          const plan = planVideoConversion(file, this.videoMeta.get(file.path), this.videoIntent);
+          if (!plan.ok) {
+            this.appendLog(`Skipped ${file.name || file.path}: ${plan.rejection}\n`);
+            continue;
+          }
+        }
+        runnable.push(file);
+      }
+      this.queue = createQueue(runnable, intent, (file, _intent, index) =>
+        this.planForFile(file, index ?? 0),
       );
       this.sizeSummary = "";
     }
@@ -599,11 +708,10 @@ class AppState {
       this.commandSummary = "Add files first";
       return;
     }
-    const intent = this.intent;
     const isWindows = this.platform === "win32";
     const lines = this.files.map((file, index) => {
-      const plan = planConversion(file, intent, index);
-      return formatCommand([intent.ffmpegPath, ...plan.args], { platform: this.platform });
+      const plan = this.planForFile(file, index);
+      return formatCommand([this.intent.ffmpegPath, ...plan.args], { platform: this.platform });
     });
     const shebang = isWindows ? "@echo off\r\n" : "#!/bin/sh\n";
     const content = shebang + lines.join("\n") + "\n";

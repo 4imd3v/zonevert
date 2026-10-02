@@ -1,6 +1,7 @@
 <script lang="ts">
   import SourcePanel from "./SourcePanel.svelte";
   import OutputPanel from "./OutputPanel.svelte";
+  import VideoPanel from "./VideoPanel.svelte";
   import NamingPanel from "./NamingPanel.svelte";
   import ResizePanel from "./ResizePanel.svelte";
   import AdvancedPanel from "./AdvancedPanel.svelte";
@@ -11,6 +12,7 @@
 
   const TABS = [
     { id: "output", label: "Output" },
+    { id: "video", label: "Video" },
     { id: "transform", label: "Transform" },
     { id: "naming", label: "Naming" },
     { id: "advanced", label: "Advanced" },
@@ -45,6 +47,9 @@
     <div class="tab-body">
       <div id="settings-panel-output" role="tabpanel" aria-labelledby="settings-tab-output" hidden={activeTab !== "output"}>
         <OutputPanel />
+      </div>
+      <div id="settings-panel-video" role="tabpanel" aria-labelledby="settings-tab-video" hidden={activeTab !== "video"}>
+        <VideoPanel />
       </div>
       <div id="settings-panel-transform" role="tabpanel" aria-labelledby="settings-tab-transform" hidden={activeTab !== "transform"}>
         <ResizePanel />
