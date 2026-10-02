@@ -1,7 +1,7 @@
 // Pure video-conversion planning: (ffprobe summary x profile intent) -> tested
 // ffmpeg argv. No DOM, no IPC. Phase 3 (atomic output) and Phase 4 (UI)
-// consume this. Hardware encoder resolution is Phase 5 — until then every
-// profile plans its CPU encoder, and `chosenVideoEncoder` says which.
+// consume this. Hardware encoders plug in as extra entries per profile;
+// `selectVideoEncoder` picks one by preference + availability + validation.
 
 import { dirname, extension, joinPath, stem } from "./conversion-plan";
 import type { MediaProbeResult } from "$lib/bindings";
@@ -22,6 +22,14 @@ export interface VideoIntent {
   outputDir: string;
 }
 
+/** Which hardware encoders the local ffmpeg build actually lists, and which
+ *  passed the 1-second validation encode. Either may be null (probe missing
+ *  or not run yet) — the planner then stays on CPU without warning. */
+export interface EncoderEnvironment {
+  availableEncoders?: Iterable<string> | null;
+  validatedEncoders?: Iterable<string> | null;
+}
+
 export interface VideoPlanResult {
   ok: boolean;
   /** Set when ok is false: why this input/profile combination can't run. */
@@ -33,66 +41,176 @@ export interface VideoPlanResult {
   outputExt: string;
   remuxOnly: boolean;
   chosenVideoEncoder: string;
+  /** Set when a hardware encoder was available but couldn't be used. */
+  fallbackWarning?: string;
 }
 
 type Probe = MediaProbeResult | null | undefined;
 
+export interface EncoderEntry {
+  /** ffmpeg encoder name: libx264, h264_nvenc, ... */
+  name: string;
+  /** hardware-accelerated (needs availability + validation before use). */
+  hw: boolean;
+  crfDefault: number;
+  /** Upper bound for the vendor quality value (51 for x264/x265 family,
+   *  63 for libvpx-vp9). */
+  crfMax: number;
+  /** Quality args for a target value — vendor-specific on purpose:
+   *  -crf (libx264/libx265/libvpx-vp9), -cq (nvenc), -global_quality (qsv),
+   *  -rc cqp -qp_i/-qp_p (amf), -q:v (videotoolbox), -qp (vaapi). */
+  qualityArgs: (crf: number) => string[];
+  videoArgs: string[];
+}
+
 interface VideoCodecSpec {
-  videoEncoder: string;
   audioEncoder: string;
   outputExt: string;
-  /** quality flag for this encoder (-crf for libx264/libx265/libvpx-vp9). */
-  qualityFlag: string;
-  crfMin: number;
-  crfMax: number;
-  crfDefault: number;
-  videoArgs: string[];
   audioArgs: string[];
   muxArgs: string[];
   /** codec names that allow `-c copy` remux into this profile's container. */
   remux: { video: string[]; audio: string[] };
+  /** Preference order: hardware first, CPU last (CPU is always present). */
+  encoders: EncoderEntry[];
 }
+
+const X264_ARGS = ["-preset", "medium", "-pix_fmt", "yuv420p"];
+const X265_ARGS = ["-preset", "medium", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"];
 
 const VIDEO_SPECS: Record<VideoProfile, VideoCodecSpec> = {
   "mp4-h264": {
-    videoEncoder: "libx264",
     audioEncoder: "aac",
     outputExt: "mp4",
-    qualityFlag: "-crf",
-    crfMin: 0,
-    crfMax: 51,
-    crfDefault: 23,
-    videoArgs: ["-preset", "medium", "-pix_fmt", "yuv420p"],
     audioArgs: ["-b:a", "128k"],
     muxArgs: ["-movflags", "+faststart"],
     remux: { video: ["h264"], audio: ["aac"] },
+    encoders: [
+      {
+        name: "h264_nvenc",
+        hw: true,
+        crfDefault: 23,
+        crfMax: 51,
+        qualityArgs: (c) => ["-cq", String(c)],
+        videoArgs: ["-preset", "p4", "-rc", "vbr", "-b:v", "0", "-pix_fmt", "yuv420p"],
+      },
+      {
+        name: "h264_qsv",
+        hw: true,
+        crfDefault: 23,
+        crfMax: 51,
+        qualityArgs: (c) => ["-global_quality", String(c)],
+        videoArgs: ["-preset", "medium", "-pix_fmt", "yuv420p"],
+      },
+      {
+        name: "h264_amf",
+        hw: true,
+        crfDefault: 23,
+        crfMax: 51,
+        qualityArgs: (c) => ["-rc", "cqp", "-qp_i", String(c), "-qp_p", String(c)],
+        videoArgs: ["-usage", "transcoding", "-pix_fmt", "yuv420p"],
+      },
+      {
+        name: "h264_videotoolbox",
+        hw: true,
+        crfDefault: 23,
+        crfMax: 51,
+        qualityArgs: (c) => ["-q:v", String(c)],
+        videoArgs: ["-pix_fmt", "yuv420p"],
+      },
+      {
+        name: "h264_vaapi",
+        hw: true,
+        crfDefault: 23,
+        crfMax: 51,
+        qualityArgs: (c) => ["-qp", String(c)],
+        videoArgs: ["-pix_fmt", "yuv420p"],
+      },
+      {
+        name: "libx264",
+        hw: false,
+        crfDefault: 23,
+        crfMax: 51,
+        qualityArgs: (c) => ["-crf", String(c)],
+        videoArgs: X264_ARGS,
+      },
+    ],
   },
   "webm-vp9": {
-    videoEncoder: "libvpx-vp9",
     audioEncoder: "libopus",
     outputExt: "webm",
-    qualityFlag: "-crf",
-    crfMin: 0,
-    crfMax: 63,
-    crfDefault: 31,
-    videoArgs: ["-b:v", "0", "-deadline", "good", "-cpu-used", "2"],
     audioArgs: ["-b:a", "128k"],
     muxArgs: [],
     remux: { video: ["vp9"], audio: ["opus"] },
+    // ponytail: no VP9 hardware entries in v1 — nvenc VP9 support is uneven
+    // across GPU/driver/build combos; libvpx-vp9 covers every machine.
+    // Upgrade path: add vp9_* entries once the validation probe can vouch.
+    encoders: [
+      {
+        name: "libvpx-vp9",
+        hw: false,
+        crfDefault: 31,
+        crfMax: 63,
+        qualityArgs: (c) => ["-crf", String(c)],
+        videoArgs: ["-b:v", "0", "-deadline", "good", "-cpu-used", "2"],
+      },
+    ],
   },
   "mp4-hevc": {
-    videoEncoder: "libx265",
     audioEncoder: "aac",
     outputExt: "mp4",
-    qualityFlag: "-crf",
-    crfMin: 0,
-    crfMax: 51,
-    crfDefault: 28,
-    // -tag:v hvc1: without it QuickTime/Safari refuse HEVC mp4 playback.
-    videoArgs: ["-preset", "medium", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"],
     audioArgs: ["-b:a", "128k"],
     muxArgs: ["-movflags", "+faststart"],
     remux: { video: ["hevc"], audio: ["aac"] },
+    encoders: [
+      {
+        name: "hevc_nvenc",
+        hw: true,
+        crfDefault: 28,
+        crfMax: 51,
+        qualityArgs: (c) => ["-cq", String(c)],
+        videoArgs: ["-preset", "p4", "-rc", "vbr", "-b:v", "0", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"],
+      },
+      {
+        name: "hevc_qsv",
+        hw: true,
+        crfDefault: 28,
+        crfMax: 51,
+        qualityArgs: (c) => ["-global_quality", String(c)],
+        videoArgs: ["-preset", "medium", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"],
+      },
+      {
+        name: "hevc_amf",
+        hw: true,
+        crfDefault: 28,
+        crfMax: 51,
+        qualityArgs: (c) => ["-rc", "cqp", "-qp_i", String(c), "-qp_p", String(c)],
+        videoArgs: ["-usage", "transcoding", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"],
+      },
+      {
+        name: "hevc_videotoolbox",
+        hw: true,
+        crfDefault: 28,
+        crfMax: 51,
+        qualityArgs: (c) => ["-q:v", String(c)],
+        videoArgs: ["-pix_fmt", "yuv420p", "-tag:v", "hvc1"],
+      },
+      {
+        name: "hevc_vaapi",
+        hw: true,
+        crfDefault: 28,
+        crfMax: 51,
+        qualityArgs: (c) => ["-qp", String(c)],
+        videoArgs: ["-pix_fmt", "yuv420p", "-tag:v", "hvc1"],
+      },
+      {
+        name: "libx265",
+        hw: false,
+        crfDefault: 28,
+        crfMax: 51,
+        qualityArgs: (c) => ["-crf", String(c)],
+        videoArgs: X265_ARGS,
+      },
+    ],
   },
 };
 
@@ -115,11 +233,12 @@ export function createVideoIntent(options: {
   collisionMode?: string;
   outputDir?: string;
 } = {}): VideoIntent {
+  const profile = normalizeProfile(options.profile);
   return {
-    profile: normalizeProfile(options.profile),
+    profile,
     resolution: normalizeResolution(options.resolution),
     fps: normalizeFps(options.fps),
-    crf: clamp(Number(options.crf) || VIDEO_SPECS[normalizeProfile(options.profile)].crfDefault, 0, 63),
+    crf: clamp(Number(options.crf) || cpuEncoder(specFor(profile)).crfDefault, 0, 63),
     encoder: options.encoder === "cpu" ? "cpu" : "auto",
     collisionMode: options.collisionMode === "skip" ? "skip" : "overwrite",
     outputDir: String(options.outputDir || ""),
@@ -144,14 +263,81 @@ function normalizeFps(value: unknown): VideoFps {
   return (FPS_VALUES.has(v) ? Number(v) : "source") as VideoFps;
 }
 
+// ---- encoder selection ----
+
+/**
+ * Pick the encoder to plan with. "cpu" always selects the CPU entry. "auto"
+ * selects the first hardware entry that the ffmpeg build lists AND that passed
+ * the 1-second validation encode; anything else falls back to CPU. A hardware
+ * encoder that is listed but failed validation produces a fallbackWarning —
+ * the app must never silently ship a broken combo.
+ */
+export function selectVideoEncoder(
+  profile: VideoProfile,
+  preference: EncoderPreference,
+  env: EncoderEnvironment = {},
+): { entry: EncoderEntry; fallbackWarning?: string } {
+  const spec = specFor(profile);
+  const cpu = cpuEncoder(spec);
+
+  if (preference === "cpu") return { entry: cpu };
+
+  const available = env.availableEncoders ? new Set(env.availableEncoders) : null;
+  // No probe ran (or failed): stay quiet on CPU — the app-level ffmpeg
+  // status already tells the user their install is broken.
+  if (!available) return { entry: cpu };
+
+  const validated = env.validatedEncoders ? new Set(env.validatedEncoders) : new Set<string>();
+  const usable = spec.encoders.find((e) => e.hw && available.has(e.name) && validated.has(e.name));
+  if (usable) return { entry: usable };
+
+  const rejected = spec.encoders.find((e) => e.hw && available.has(e.name) && !validated.has(e.name));
+  return {
+    entry: cpu,
+    fallbackWarning: rejected
+      ? `${rejected.name} did not pass its validation encode — using ${cpu.name} instead.`
+      : undefined,
+  };
+}
+
+/**
+ * A 1-second lavfi encode with the entry's real quality args, used by the app
+ * to validate a hardware encoder before the first real job. `-f null -` means
+ * no output file is written.
+ */
+export function encoderTestArgs(entry: EncoderEntry): string[] {
+  return [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=black:s=256x144:r=5",
+    "-map",
+    "0:v:0",
+    "-t",
+    "1",
+    "-c:v",
+    entry.name,
+    ...entry.qualityArgs(entry.crfDefault),
+    ...entry.videoArgs,
+    "-f",
+    "null",
+    "-",
+  ];
+}
+
 // ---- planning ----
 
 export function planVideoConversion(
   file: { path: string; name: string },
   probe: Probe,
   intent: VideoIntent,
+  env: EncoderEnvironment = {},
 ): VideoPlanResult {
-  const spec = VIDEO_SPECS[intent.profile] ?? VIDEO_SPECS[DEFAULT_PROFILE];
+  const spec = specFor(intent.profile);
+  const { entry, fallbackWarning } = selectVideoEncoder(intent.profile, intent.encoder, env);
   const reject = (rejection: string): VideoPlanResult => ({
     ok: false,
     rejection,
@@ -160,7 +346,7 @@ export function planVideoConversion(
     outputPath: "",
     outputExt: spec.outputExt,
     remuxOnly: false,
-    chosenVideoEncoder: spec.videoEncoder,
+    chosenVideoEncoder: entry.name,
   });
 
   if (!probe || !probe.ok) {
@@ -180,6 +366,7 @@ export function planVideoConversion(
   }
 
   const warnings: string[] = [];
+  if (fallbackWarning) warnings.push(fallbackWarning);
   if (!probe.duration) {
     warnings.push("Duration unknown — progress will be indeterminate.");
   }
@@ -201,14 +388,18 @@ export function planVideoConversion(
       if (video.height! < target) {
         warnings.push(`Upscaling from ${video.height}p to ${target}p will not improve quality.`);
       }
+      if (entry.hw) {
+        warnings.push("Scaling runs on the CPU even with a hardware encoder — expect slower encodes.");
+      }
     }
     if (intent.fps !== "source") {
       args.push("-r", String(intent.fps));
       warnings.push(`Converting to ${intent.fps} fps re-times the whole video and slows encoding.`);
     }
-    const crf = clamp(Math.round(intent.crf), spec.crfMin, spec.crfMax);
-    args.push("-c:v", spec.videoEncoder, spec.qualityFlag, String(crf));
-    args.push(...spec.videoArgs);
+    const crf = clamp(Math.round(intent.crf), 0, entry.crfMax);
+    args.push("-c:v", entry.name);
+    args.push(...entry.qualityArgs(crf));
+    args.push(...entry.videoArgs);
     args.push("-c:a", spec.audioEncoder);
     args.push(...spec.audioArgs);
     args.push(...spec.muxArgs);
@@ -223,7 +414,8 @@ export function planVideoConversion(
     outputPath,
     outputExt: spec.outputExt,
     remuxOnly,
-    chosenVideoEncoder: remuxOnly ? "copy" : spec.videoEncoder,
+    chosenVideoEncoder: remuxOnly ? "copy" : entry.name,
+    fallbackWarning,
   };
 }
 
@@ -239,13 +431,26 @@ export function videoOutputPath(
   file: { path: string; name: string },
   intent: VideoIntent,
 ): string {
-  const spec = VIDEO_SPECS[intent.profile] ?? VIDEO_SPECS[DEFAULT_PROFILE];
+  const spec = specFor(intent.profile);
   const name = file.name || file.path;
   // Same-extension output (mp4 -> mp4-h264) MUST suffix, or we'd overwrite
   // the source.
   const sameExt = extension(name) === spec.outputExt;
   const outName = `${stem(name)}${sameExt ? "-converted" : ""}.${spec.outputExt}`;
   return joinPath(intent.outputDir || dirname(file.path), outName);
+}
+
+function specFor(profile: VideoProfile): VideoCodecSpec {
+  return VIDEO_SPECS[profile] ?? VIDEO_SPECS[DEFAULT_PROFILE];
+}
+
+function cpuEncoder(spec: VideoCodecSpec): EncoderEntry {
+  return spec.encoders.find((e) => !e.hw)!;
+}
+
+/** Hardware encoder names for a profile, in preference order (UI listing). */
+export function hardwareEncoders(profile: VideoProfile): EncoderEntry[] {
+  return specFor(profile).encoders.filter((e) => e.hw);
 }
 
 function samePath(a: string, b: string): boolean {

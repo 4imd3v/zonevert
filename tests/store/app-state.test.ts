@@ -69,6 +69,7 @@ beforeEach(async () => {
   appState.stopAfterCurrent = false;
   appState.isConverting = false;
   (appState as unknown as { conversionTimes: number[] }).conversionTimes = [];
+  appState.videoEncoders = new Map();
   appState.resetSettings();
   deferred.clear();
   inflight = 0;
@@ -381,5 +382,69 @@ describe("video intake + queue", () => {
 
     release({ ok: true });
     await p;
+  });
+});
+
+describe("video hardware encoders", () => {
+  const videoProbe: MediaProbeResult = {
+    ok: true,
+    duration: 12.345,
+    video: { codecType: "video", codecName: "vp9", width: 1280, height: 720 },
+    audio: { codecType: "audio", codecName: "opus", sampleRate: 48000, channels: 2 },
+  };
+
+  async function withVideoFile() {
+    h.probeMedia.mockImplementation(async () => videoProbe);
+    appState.outputDir = "/out";
+    appState.addDroppedFiles(["/in/clip.mkv"]);
+    await waitFor(() => appState.isVideo("/in/clip.mkv"));
+  }
+
+  it("uses a validated hardware encoder with its vendor quality flags", async () => {
+    h.probeEncoders.mockImplementation(async () => ["libx264", "h264_nvenc", "libvpx-vp9", "libopus"]);
+    await appState.probeFfmpeg();
+    h.convert.mockImplementation(async () => ({ ok: true }));
+    await withVideoFile();
+
+    await appState.runConversion();
+
+    const item = appState.queue.find((i) => i.file.path === "/in/clip.mkv")!;
+    expect(item.args).toContain("h264_nvenc");
+    expect(item.args).toContain("-cq");
+    // validation ran through the same convert binding
+    expect(h.convert).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: "validate:h264_nvenc" }),
+    );
+  });
+
+  it("falls back to CPU when validation fails", async () => {
+    h.probeEncoders.mockImplementation(async () => ["libx264", "h264_nvenc", "libvpx-vp9", "libopus"]);
+    await appState.probeFfmpeg();
+    // validation encode fails (e.g. driver blocks the GPU)
+    h.convert.mockImplementation(async (p: { jobId: string; args: string[] }) =>
+      p.args.includes("h264_nvenc") ? { ok: false, error: "Cannot load nvcuda" } : { ok: true },
+    );
+    await withVideoFile();
+
+    await appState.runConversion();
+
+    const item = appState.queue.find((i) => i.file.path === "/in/clip.mkv")!;
+    expect(item.args).toContain("libx264");
+    expect(item.args).not.toContain("h264_nvenc");
+    expect(appState.logs.join("")).toContain("Encoder validation failed: h264_nvenc");
+  });
+
+  it("cpu preference keeps the CPU encoder even when hardware validates", async () => {
+    h.probeEncoders.mockImplementation(async () => ["libx264", "h264_nvenc", "libvpx-vp9", "libopus"]);
+    await appState.probeFfmpeg();
+    h.convert.mockImplementation(async () => ({ ok: true }));
+    appState.settings.videoEncoder = "cpu";
+    await withVideoFile();
+
+    await appState.runConversion();
+
+    const item = appState.queue.find((i) => i.file.path === "/in/clip.mkv")!;
+    expect(item.args).toContain("libx264");
+    expect(item.args).not.toContain("h264_nvenc");
   });
 });

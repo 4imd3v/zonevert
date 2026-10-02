@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { appState } from "$lib/stores/app-state.svelte";
 
   const PROFILES = [
@@ -11,9 +12,22 @@
     "webm-vp9": 63,
     "mp4-hevc": 51,
   };
+  const HW_LABEL: Record<string, string> = {
+    ready: "ready",
+    failed: "failed validation",
+    pending: "not verified",
+    absent: "not in this FFmpeg build",
+  };
 
   let crfMax = $derived(CRF_MAX[appState.settings.videoProfile] ?? 51);
   let warnings = $derived(appState.videoWarnings);
+  let hwStatus = $derived(appState.videoHardwareStatus);
+
+  // Validate this profile's hardware encoders once when the tab opens (1s
+  // lavfi encode each; cached for the session).
+  onMount(() => {
+    appState.ensureVideoEncoders();
+  });
 </script>
 
 <section class="panel" aria-labelledby="videoTitle">
@@ -53,6 +67,14 @@
         <option value="60">60 fps</option>
       </select>
     </label>
+
+    <label class="field">
+      <span>Encoder</span>
+      <select bind:value={appState.settings.videoEncoder} onchange={() => appState.persistSettings()}>
+        <option value="auto">Automatic (hardware if ready)</option>
+        <option value="cpu">CPU only</option>
+      </select>
+    </label>
   </div>
 
   <label class="range-field">
@@ -60,6 +82,14 @@
     <input type="range" min="0" max={crfMax} bind:value={appState.settings.videoCrf} oninput={() => appState.persistSettings()} />
     <small class="quality-hint">Lower = better quality, larger file · 0–{crfMax} for this profile</small>
   </label>
+
+  {#if hwStatus.length}
+    <ul class="encoder-status">
+      {#each hwStatus as hw (hw.name)}
+        <li><span class="encoder-dot encoder-dot--{hw.status}" aria-hidden="true"></span>{hw.name} — {HW_LABEL[hw.status]}</li>
+      {/each}
+    </ul>
+  {/if}
 
   {#if warnings.length}
     {#each warnings as warning}

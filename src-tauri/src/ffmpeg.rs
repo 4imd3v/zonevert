@@ -714,6 +714,15 @@ fn no_window(_cmd: &mut Command) {}
 mod tests {
     use super::*;
 
+    /// Serializes tests that read or mutate FFMPEG_PATH/FFPROBE_PATH: cargo
+    /// runs tests in parallel threads, and a reader must never observe a
+    /// half-mutated env.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     #[test]
     fn parses_dimensions_csv() {
         let parts: Vec<&str> = "1920,1080".trim().split(',').collect();
@@ -737,6 +746,7 @@ mod tests {
     // would race.
     #[test]
     fn resolve_ffmpeg_env_priority() {
+        let _guard = env_guard();
         std::env::remove_var("FFMPEG_PATH");
         assert_eq!(resolve_ffmpeg(&None), "ffmpeg");
 
@@ -783,6 +793,11 @@ Encoders:
 
     #[test]
     fn resolve_ffprobe_derives_sibling_from_ffmpeg_path() {
+        let _guard = env_guard();
+        // A non-ffmpeg name must NOT become ffprobe; it falls through to
+        // the env var (kept unset here — the env cases live in
+        // resolve_ffprobe_env_priority, which holds the same lock).
+        std::env::remove_var("FFPROBE_PATH");
         assert_eq!(
             resolve_ffprobe(&Some("/opt/ffmpeg/bin/ffmpeg".into())),
             "/opt/ffmpeg/bin/ffprobe"
@@ -800,7 +815,6 @@ Encoders:
             resolve_ffprobe(&Some("/opt/ff/ffmpeg-7".into())),
             "/opt/ff/ffprobe"
         );
-        // a non-ffmpeg name must NOT become ffprobe (would be a bogus path)
         assert_eq!(resolve_ffprobe(&Some("/opt/tools/convert".into())), "ffprobe");
     }
 
@@ -808,6 +822,7 @@ Encoders:
     // runs tests in parallel threads).
     #[test]
     fn resolve_ffprobe_env_priority() {
+        let _guard = env_guard();
         std::env::remove_var("FFPROBE_PATH");
         assert_eq!(resolve_ffprobe(&None), "ffprobe");
         assert_eq!(resolve_ffprobe(&Some(String::new())), "ffprobe");
@@ -886,6 +901,7 @@ Encoders:
     /// runners without ffmpeg must stay green).
     #[tokio::test]
     async fn probe_media_on_generated_clip() {
+        let _guard = env_guard();
         if probe("ffmpeg").await.version.is_none() && !std::path::Path::new("/usr/bin/ffmpeg").exists() {
             return;
         }
@@ -920,17 +936,33 @@ Encoders:
     // ---- child-process integration tests (fake ffmpeg scripts) ----
 
     /// Write an executable fake-ffmpeg script to a temp dir and return its path.
+    ///
+    /// Published via rename of a staging file: exec() of a file with an open
+    /// writer fails with ETXTBSY ("Text file busy") — observed as flaky
+    /// spawn failures on loaded machines — and rename guarantees the target
+    /// inode was closed before it is ever executed.
     #[cfg(unix)]
     fn write_script(name: &str, body: &str) -> String {
         use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQ: AtomicU32 = AtomicU32::new(0);
+
         let dir = std::env::temp_dir().join(format!("zonevert-{}-{}", name, std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(name);
-        let mut f = std::fs::File::create(&path).unwrap();
-        writeln!(f, "#!/bin/sh\n{body}").unwrap();
-        drop(f);
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let staging = dir.join(format!("{name}.{}.staging", SEQ.fetch_add(1, Ordering::Relaxed)));
+        {
+            let mut f = std::fs::File::create(&staging).unwrap();
+            writeln!(f, "#!/bin/sh\n{body}").unwrap();
+        }
+        std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::rename(&staging, &path).unwrap();
+        // ponytail: 5ms settle — this environment's fs intermittently returns
+        // ETXTBSY when exec'ing a just-published file (measured ~3% of spawns;
+        // direct-write is ~9%, rename+settle 0/320). Remove the sleep if the
+        // fs behavior is ever fixed; it costs 5ms per fake script.
+        std::thread::sleep(std::time::Duration::from_millis(5));
         path.to_string_lossy().to_string()
     }
 
@@ -1063,7 +1095,7 @@ Encoders:
         );
         let registry = ProcessRegistry::default();
         let r = run(&handle, &registry, convert_req("flood", script)).await;
-        assert!(r.ok, "stderr flood must not deadlock the runner");
+        assert!(r.ok, "stderr flood must not deadlock the runner: {:?}", r.error);
         assert!(
             registry.0.lock().await.is_empty(),
             "registry must be cleaned up after exit"
@@ -1086,7 +1118,7 @@ Encoders:
         let notify = wait_for_entry(&registry, "polite").await;
         notify.notify_one();
 
-        let r = tokio::time::timeout(std::time::Duration::from_secs(10), handle_task)
+        let r = tokio::time::timeout(std::time::Duration::from_secs(20), handle_task)
             .await
             .expect("run must return after cancel")
             .unwrap();
@@ -1121,7 +1153,10 @@ Encoders:
     /// Block until run() registers job_id, returning its cancel Notify.
     #[cfg(unix)]
     async fn wait_for_entry(registry: &ProcessRegistry, job_id: &str) -> Arc<Notify> {
-        for _ in 0..100 {
+        // ponytail: 20s budget (was 5s) — on slow/loaded CI boxes the
+        // spawned run() task can be starved past 5s; these tests assert the
+        // cancel mechanism, not spawn latency.
+        for _ in 0..400 {
             {
                 let map = registry.0.lock().await;
                 if let Some((_, cancel)) = map.get(job_id) {

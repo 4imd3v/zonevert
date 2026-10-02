@@ -2,6 +2,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createVideoIntent,
+  encoderTestArgs,
+  hardwareEncoders,
   planVideoConversion,
   videoOutputPath,
 } from "../src/lib/logic/video-plan";
@@ -193,5 +195,92 @@ describe("video-plan", () => {
     assert.equal(intent.resolution, "source");
     assert.equal(intent.fps, "source");
     assert.equal(intent.crf, 23);
+  });
+});
+
+describe("video-plan hardware encoders", () => {
+  const env = {
+    availableEncoders: ["libx264", "h264_nvenc"],
+    validatedEncoders: ["h264_nvenc"],
+  };
+
+  test("auto picks a validated hardware encoder with vendor quality flags", () => {
+    const plan = planVideoConversion(
+      file, vp9Probe,
+      createVideoIntent({ profile: "mp4-h264", encoder: "auto" }),
+      env,
+    );
+    assert.equal(plan.chosenVideoEncoder, "h264_nvenc");
+    assert.ok(plan.args.includes("-cq"), "nvenc uses -cq, not -crf");
+    assert.ok(plan.args.includes("h264_nvenc"));
+    assert.ok(plan.args.includes("vbr"));
+    assert.equal(plan.fallbackWarning, undefined);
+  });
+
+  test("cpu preference forces the CPU encoder even when hardware validates", () => {
+    const plan = planVideoConversion(
+      file, vp9Probe,
+      createVideoIntent({ profile: "mp4-h264", encoder: "cpu" }),
+      env,
+    );
+    assert.equal(plan.chosenVideoEncoder, "libx264");
+    assert.ok(plan.args.includes("-crf"));
+  });
+
+  test("listed-but-unvalidated hardware falls back to CPU with a warning", () => {
+    const plan = planVideoConversion(
+      file, vp9Probe,
+      createVideoIntent({ profile: "mp4-h264" }),
+      { availableEncoders: ["libx264", "h264_nvenc"], validatedEncoders: [] },
+    );
+    assert.equal(plan.chosenVideoEncoder, "libx264");
+    assert.match(plan.fallbackWarning!, /h264_nvenc did not pass/);
+    assert.ok(plan.warnings.some((w) => w.includes("h264_nvenc")));
+  });
+
+  test("no encoder probe at all stays quietly on CPU", () => {
+    const plan = planVideoConversion(file, vp9Probe, createVideoIntent({ profile: "mp4-h264" }));
+    assert.equal(plan.chosenVideoEncoder, "libx264");
+    assert.equal(plan.fallbackWarning, undefined);
+  });
+
+  test("vp9 profile has no hardware entries (nvenc vp9 unsupported)", () => {
+    const plan = planVideoConversion(
+      file, h264Probe,
+      createVideoIntent({ profile: "webm-vp9" }),
+      { availableEncoders: ["libx264", "h264_nvenc", "vp9_qsv"], validatedEncoders: ["vp9_qsv"] },
+    );
+    assert.equal(plan.chosenVideoEncoder, "libvpx-vp9");
+    assert.equal(plan.fallbackWarning, undefined);
+  });
+
+  test("crf clamps to the hardware encoder's range too", () => {
+    const plan = planVideoConversion(
+      file, vp9Probe,
+      createVideoIntent({ profile: "mp4-h264", crf: 999 }),
+      env,
+    );
+    assert.ok(plan.args.includes("51"), "h264_nvenc -cq clamps to 51");
+  });
+
+  test("scaling with a hardware encoder warns about the CPU filter path", () => {
+    const plan = planVideoConversion(
+      file, vp9Probe,
+      createVideoIntent({ profile: "mp4-h264", resolution: "720p" }),
+      env,
+    );
+    assert.ok(plan.warnings.some((w) => w.includes("CPU even with a hardware encoder")));
+  });
+
+  test("encoderTestArgs builds a self-contained 1s lavfi validate run", () => {
+    const [entry] = hardwareEncoders("mp4-h264");
+    const args = encoderTestArgs(entry);
+    assert.equal(args.at(-2), "null");
+    assert.ok(args.includes("lavfi"));
+    assert.ok(args.includes(entry.name));
+    assert.ok(args.includes("-t"));
+    assert.ok(args.includes("1"));
+    // no output file is ever written for a validation run
+    assert.ok(!args.some((a) => a.endsWith(".mp4")));
   });
 });

@@ -100,7 +100,7 @@ Goal: users can add, inspect, configure, and convert videos.
   is desktop today — gate on `cfg(desktop)` if needed).
 - Tests: store-level vitest flows for video queue (probe → plan → run).
 
-## Phase 5 — Hardware encoders & preflight
+## Phase 5 — Hardware encoders & preflight — DONE
 
 Goal: use NVENC/QSV/AMF/VideoToolbox/VAAPI when present, CPU fallback else.
 

@@ -33,8 +33,13 @@ import {
 } from "$lib/logic/conversion-plan";
 import {
   createVideoIntent,
+  encoderTestArgs,
+  hardwareEncoders,
   planVideoConversion,
+  type EncoderEnvironment,
   type VideoIntent,
+  type VideoPlanResult,
+  type VideoProfile,
 } from "$lib/logic/video-plan";
 import { formatProbeSummary } from "$lib/logic/media-probe";
 import {
@@ -79,6 +84,7 @@ export interface Settings {
   videoResolution: string;
   videoFps: string;
   videoCrf: number;
+  videoEncoder: string;
 }
 
 export interface HistoryEntry {
@@ -116,6 +122,7 @@ const DEFAULT_SETTINGS: Settings = {
   videoResolution: "source",
   videoFps: "source",
   videoCrf: 23,
+  videoEncoder: "auto",
 };
 
 class AppState {
@@ -127,6 +134,8 @@ class AppState {
   // paths probeMedia classified as real video + their probe summaries
   videoFiles = $state.raw<Set<string>>(new Set());
   videoMeta = $state.raw<Map<string, MediaProbeResult>>(new Map());
+  // hardware encoder -> passed the 1s validation encode? (name -> bool)
+  videoEncoders = $state.raw<Map<string, boolean>>(new Map());
 
   // ---- output settings ----
   outputDir = $state("");
@@ -219,16 +228,26 @@ class AppState {
       resolution: s.videoResolution,
       fps: s.videoFps,
       crf: s.videoCrf,
+      encoder: s.videoEncoder,
       collisionMode: s.collisionMode,
       outputDir: this.outputDir,
     });
+  }
+
+  private videoPlanFor(file: SelectedImage): VideoPlanResult {
+    return planVideoConversion(
+      file,
+      this.videoMeta.get(file.path),
+      this.videoIntent,
+      this.encoderEnv,
+    );
   }
 
   /** Plan one file through the image or video planner by classification. */
   planForFile(file: SelectedImage, index: number): ConversionPlan {
     if (this.videoFiles.has(file.path)) {
       const probe = this.videoMeta.get(file.path);
-      const plan = planVideoConversion(file, probe, this.videoIntent);
+      const plan = this.videoPlanFor(file);
       return {
         file,
         args: plan.args,
@@ -253,8 +272,63 @@ class AppState {
   get videoWarnings(): string[] {
     const first = this.files.find((f) => this.videoFiles.has(f.path));
     if (!first) return [];
-    const plan = planVideoConversion(first, this.videoMeta.get(first.path), this.videoIntent);
+    const plan = this.videoPlanFor(first);
     return plan.ok ? plan.warnings : [plan.rejection ?? "This file cannot be converted."];
+  }
+
+  /** Hardware encoders of the active profile, with detection/validation state. */
+  get videoHardwareStatus(): { name: string; status: "ready" | "failed" | "pending" | "absent" }[] {
+    const profile = this.settings.videoProfile as VideoProfile;
+    return hardwareEncoders(profile).map((entry) => {
+      if (!this.encoders.has(entry.name)) return { name: entry.name, status: "absent" as const };
+      const seen = this.videoEncoders.get(entry.name);
+      if (seen === undefined) return { name: entry.name, status: "pending" as const };
+      return { name: entry.name, status: seen ? ("ready" as const) : ("failed" as const) };
+    });
+  }
+
+  private get encoderEnv(): EncoderEnvironment {
+    return {
+      availableEncoders: this.encoders,
+      validatedEncoders: new Set(
+        [...this.videoEncoders].filter(([, ok]) => ok).map(([name]) => name),
+      ),
+    };
+  }
+
+  /**
+   * Validate the active profile's hardware encoders with a 1-second lavfi
+   * encode each (needs `ffmpeg -encoders` probed first). Cached per encoder
+   * for the session; failures degrade to the CPU encoder at plan time.
+   */
+  async ensureVideoEncoders() {
+    const profile = this.settings.videoProfile as VideoProfile;
+    const candidates = hardwareEncoders(profile).filter(
+      (entry) => this.encoders.has(entry.name) && !this.videoEncoders.has(entry.name),
+    );
+    if (!candidates.length) return;
+    for (const entry of candidates) {
+      this.videoEncoders = new Map(this.videoEncoders).set(entry.name, false);
+    }
+    await runPool(candidates, 2, async (entry) => {
+      let ok = false;
+      try {
+        const result = await convert({
+          jobId: `validate:${entry.name}`,
+          ffmpegPath: this.settings.ffmpegPath,
+          args: encoderTestArgs(entry),
+        });
+        ok = result.ok;
+        if (!result.ok) {
+          this.appendLog(
+            `Encoder validation failed: ${entry.name} (${result.error || "unknown error"})\n`,
+          );
+        }
+      } catch {
+        // IPC failure — treat as validation failure, CPU fallback applies
+      }
+      this.videoEncoders = new Map(this.videoEncoders).set(entry.name, ok);
+    });
   }
 
   buildCommand(file?: SelectedImage): string {
@@ -449,13 +523,18 @@ class AppState {
 
     const intent = this.intent;
 
+    // Hardware encoders must be validated before planning picks one.
+    if (this.files.some((f) => this.videoFiles.has(f.path))) {
+      await this.ensureVideoEncoders();
+    }
+
     if (!retry) {
       // Video files whose plan rejects (probe cache gone, path collision)
       // are excluded up front with a log line instead of failing mid-queue.
       const runnable: SelectedImage[] = [];
       for (const file of this.files) {
         if (this.videoFiles.has(file.path)) {
-          const plan = planVideoConversion(file, this.videoMeta.get(file.path), this.videoIntent);
+          const plan = this.videoPlanFor(file);
           if (!plan.ok) {
             this.appendLog(`Skipped ${file.name || file.path}: ${plan.rejection}\n`);
             continue;
