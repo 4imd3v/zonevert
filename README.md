@@ -1,6 +1,7 @@
 # Zonevert
 
-Zonevert is a cross-platform (Windows, Linux, macOS) desktop UI for batch image conversion through FFmpeg.
+Zonevert is a cross-platform (Windows, Linux, macOS) desktop UI for batch
+image and video conversion through FFmpeg.
 
 ## Requirements
 
@@ -10,6 +11,11 @@ Zonevert is a cross-platform (Windows, Linux, macOS) desktop UI for batch image 
 - **FFmpeg installed on your system** (see [FFmpeg](#ffmpeg) below). A custom
   FFmpeg path can be entered in the app's Advanced panel, or set via the
   `FFMPEG_PATH` env var.
+- **FFprobe** (ships with every FFmpeg install) is required for video
+  conversion — it inspects inputs before planning. Zonevert resolves it as a
+  sibling of your FFmpeg binary (e.g. `/opt/ffmpeg/bin/ffprobe` for
+  `/opt/ffmpeg/bin/ffmpeg`), then falls back to the `FFPROBE_PATH` env var,
+  then `ffprobe` on `PATH`.
 
 > macOS build host needs the Rust targets `aarch64-apple-darwin` and
 > `x86_64-apple-darwin` (`rustup target add aarch64-apple-darwin x86_64-apple-darwin`).
@@ -112,7 +118,6 @@ conversion:
 
 Install FFmpeg through your package manager or download from
 [ffmpeg.org](https://ffmpeg.org/download.html).
-
 ### Encoder availability
 
 The app probes `ffmpeg -encoders` at startup and warns when your build lacks
@@ -122,7 +127,6 @@ an optional encoder for the selected format (the default, **webp**, needs
 supported formats use codecs built into every FFmpeg build.
 
 ### Metadata & provenance
-
 Unchecking "Keep metadata" passes `-map_metadata -1`, which strips metadata
 from the output. Note that any conversion is a re-encode: C2PA content
 credentials are **destroyed by re-encoding** even for "clean" files, so
@@ -139,24 +143,84 @@ converted outputs carry no provenance from the source.
 Notable gaps in typical distro FFmpeg builds: **JPEG XL (jxl)** and
 **HEIF encoding** — both require a custom FFmpeg build if needed.
 
+## Video conversion
+
+Videos are inspected with FFprobe before conversion, and videos and images
+can be mixed in one queue — each file is planned with its own profile.
+
+### Profiles (Video tab)
+
+| Profile | Container | Video | Audio | Notes |
+| --- | --- | --- | --- | --- |
+| MP4 · H.264 | `.mp4` | H.264, yuv420p | AAC | Safest default; plays everywhere |
+| WebM · VP9 | `.webm` | VP9 | Opus | Good for web playback; slower encode |
+| MP4 · HEVC | `.mp4` | HEVC, yuv420p, hvc1 tag | AAC | Smaller files; less universal playback |
+
+Controls: resolution (source / 1080p / 720p / 480p, `scale=-2:H`), frame rate
+(source / 24 / 30 / 60), and a CRF quality slider (0–51, or 0–63 for VP9;
+lower = better quality, larger files).
+
+### Remuxing
+
+When the input already matches the chosen profile (e.g. H.264 + AAC into
+MP4) and no scaling or frame-rate change is requested, Zonevert remuxes with
+`-c copy` — a fast, lossless container rewrite instead of a re-encode.
+
+### Hardware encoders
+
+The Video tab lists the hardware encoders your FFmpeg build provides for the
+selected profile. Each one must pass a 1-second test encode before use —
+driver problems often hide behind `ffmpeg -encoders` output — and on failure
+the job runs on the CPU encoder with a visible note. Quality flags are mapped
+per vendor (`-crf` libx264/libx265/libvpx-vp9, `-cq` NVENC, `-global_quality`
+QSV, `-qp` VAAPI, CQP AMF, `-q:v` VideoToolbox); the same CRF slider drives
+them all. VP9 currently encodes on the CPU only (vendor VP9 support is
+uneven). Choose "CPU only" to pin the software encoders.
+
+### Safety & progress
+
+Outputs are written to a temporary file next to the destination and renamed
+only after a successful encode, so a failed or cancelled job never leaves a
+half-written file behind. Progress is percentage-based (FFprobe duration ×
+FFmpeg `time=`) with speed and ETA; files with unknown duration show an
+indeterminate bar. Cancellation sends SIGTERM (FFmpeg finalizes the current
+output) and escalates to SIGKILL if the process ignores it.
+
+### Accepted video inputs
+
+`mp4`, `m4v`, `mov`, `mkv`, `webm`, `avi`, `flv`, `wmv`, `ts`, `m2ts`,
+`mpeg`, `mpg`, `3gp`, `ogv` — anything your FFmpeg build can demux.
+Audio-only files (including ones that only carry cover art) are detected
+with FFprobe and kept out of video conversion.
+
+### Known limits
+
+No concat/join, HLS/DASH output, subtitle burn-in, or multi-track remuxing —
+deliberately deferred until the core path is battle-tested. Video conversion
+is desktop-only; Tauri mobile builds cannot spawn FFmpeg.
+
 ## Architecture
 
 Tauri 2 backend (Rust, `src-tauri/`) + Svelte 5 + TypeScript + Vite frontend
-(`src/`). The backend spawns ffmpeg directly via `tokio::process::Command` and
-emits `ffmpeg:log` events; the frontend calls typed bindings in
-`src/lib/bindings.ts`.
+(`src/`). The backend spawns ffmpeg/ffprobe directly via
+`tokio::process::Command` and emits `ffmpeg:log` events; the frontend calls
+typed bindings in `src/lib/bindings.ts`.
 
 The renderer adapts UI state into a conversion intent, while
-`src/lib/logic/conversion-plan.ts` builds FFmpeg arguments and
+`src/lib/logic/conversion-plan.ts` (images) and
+`src/lib/logic/video-plan.ts` (videos) build FFmpeg arguments,
+`src/lib/logic/media-probe.ts` classifies probed media, and
 `src/lib/logic/queue-state.ts` owns queue lifecycle status transitions. These
 modules are covered by `pnpm check`.
 
 ## FFmpeg Scope
 
 The main controls cover common image conversion needs: format, quality,
-overwrite behavior, metadata, resize mode, and batch queue execution. The
-Advanced FFmpeg section exposes global, input, filter graph, and output
-arguments so FFmpeg options can be used without changing the UI code.
+overwrite behavior, metadata, resize mode, and batch queue execution — plus
+video profiles (H.264/VP9/HEVC), resolution, frame rate, and encoder choice
+for videos in the queue. The Advanced FFmpeg section exposes global, input,
+filter graph, and output arguments so FFmpeg options can be used without
+changing the UI code.
 
 ## Acknowledgements
 

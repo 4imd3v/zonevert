@@ -113,7 +113,7 @@ Goal: use NVENC/QSV/AMF/VideoToolbox/VAAPI when present, CPU fallback else.
 - Tests: mapping table pure fn; fallback selection; "VP9 + nvenc unsupported"
   resolves to libvpx-vp9.
 
-## Phase 6 — Docs, packaging, release
+## Phase 6 — Docs, packaging, release — DONE
 
 Goal: ship honestly.
 
