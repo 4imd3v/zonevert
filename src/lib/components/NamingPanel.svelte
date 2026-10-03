@@ -20,7 +20,7 @@
 <section class="panel" aria-labelledby="namingTitle">
   <div class="panel-header">
     <div>
-      <h2 id="namingTitle">Naming</h2>
+      <h2 id="namingTitle">Names</h2>
       <p>{summary}</p>
     </div>
   </div>

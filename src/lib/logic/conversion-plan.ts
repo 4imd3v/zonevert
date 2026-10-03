@@ -69,6 +69,17 @@ export const PRESET_DEFAULTS: Record<Preset, { quality: number }> = {
   lossless: { quality: 100 },
 };
 
+/** Display name of each output format (run bar, status bar, history). */
+export const FORMAT_LABELS: Record<string, string> = {
+  webp: "WebP", jpg: "JPEG", png: "PNG", avif: "AVIF",
+  tiff: "TIFF", bmp: "BMP", gif: "GIF", apng: "APNG",
+  jp2: "JPEG 2000", jls: "JPEG-LS", exr: "OpenEXR", qoi: "QOI", tga: "Targa",
+};
+
+export function formatLabel(format: string): string {
+  return FORMAT_LABELS[format] ?? format.toUpperCase();
+}
+
 const supportedFormats = new Set<string>([
   "webp", "jpg", "png", "avif", "tiff", "bmp", "gif",
   "apng", "jp2", "exr", "qoi", "tga", "jls",

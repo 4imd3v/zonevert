@@ -9,12 +9,6 @@
   let eta = $derived(appState.etaText);
   let summaryText = $derived(eta ? `${queueSummary.text} · ${eta}` : queueSummary.text);
 
-  let hasRunning = $derived(appState.queue.some((item) => item.status === "running"));
-  let canCancel = $derived(appState.isConverting && hasRunning && !appState.cancelRequested);
-  let canStopAfter = $derived(appState.isConverting && !appState.stopAfterCurrent);
-  let showRetry = $derived(appState.hasFailed && !appState.isConverting);
-  let convertLabel = $derived(appState.isConverting ? "Converting" : "Convert");
-
   function formatItemProgress(item: QueueItem): string {
     if (item.status !== "running" || !item.progress) return "";
     const parts: string[] = [];
@@ -33,29 +27,13 @@
       <h2 id="queueTitle">Queue</h2>
       <p>{summaryText}</p>
     </div>
-    <div class="button-row">
-      <button class="primary-button" type="button" title="Convert (Ctrl+Enter)" disabled={!appState.canConvert} class:is-busy={appState.isConverting} aria-busy={appState.isConverting} onclick={() => appState.runConversion()}>
-        <Icon name="play" />
-        <span>{convertLabel}</span>
-      </button>
-      <button class="secondary-button" type="button" aria-label="Retry failed conversions" title="Retry failed" hidden={!showRetry} onclick={() => appState.retryFailed()}>
-        <Icon name="play" />
-        Retry failed
-      </button>
-      <button class="icon-button" type="button" aria-label="Stop after current" title="Stop after current job" disabled={!canStopAfter} onclick={() => appState.stopAfterCurrentJob()}>
-        <Icon name="square" />
-      </button>
-      <button class="icon-button danger-button" type="button" aria-label="Cancel current job" title="Cancel immediately (Esc)" disabled={!canCancel} onclick={() => appState.cancelCurrentJob()}>
-        <Icon name="x-circle" />
-      </button>
-    </div>
   </div>
 
   <div class="queue-progress" role="progressbar" aria-label="Queue progress" aria-valuenow={queueSummary.progress} aria-valuemin="0" aria-valuemax="100">
     <span style="width: {queueSummary.progress}%"></span>
   </div>
 
-  <div class="queue-list">
+  <div class="queue-list" role="list">
     {#if !appState.queue.length}
       <div class="empty-state">
         <Icon name="terminal" />

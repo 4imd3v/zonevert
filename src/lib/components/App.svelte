@@ -4,6 +4,7 @@
   import { appState } from "$lib/stores/app-state.svelte";
   import Topbar from "./Topbar.svelte";
   import Workspace from "./Workspace.svelte";
+  import RunBar from "./RunBar.svelte";
   import StatusBar from "./StatusBar.svelte";
 
   onMount(() => {
@@ -15,8 +16,13 @@
     try {
       const win = getCurrentWebviewWindow();
       win.onDragDropEvent((e) => {
-        if (e.payload.type !== "drop") return;
-        appState.addDroppedFiles(e.payload.paths);
+        if (e.payload.type === "drop") {
+          appState.isDraggingFiles = false;
+          appState.addDroppedFiles(e.payload.paths);
+        } else {
+          // "enter" / "over" / "leave" — highlight the drop affordance.
+          appState.isDraggingFiles = e.payload.type !== "leave";
+        }
       }).then((fn) => {
         unlisten = fn;
       });
@@ -69,6 +75,7 @@
 <main class="app-shell">
   <Topbar />
   <Workspace />
+  <RunBar />
   <StatusBar />
 </main>
 

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { appState } from "$lib/stores/app-state.svelte";
-  import Icon from "./Icon.svelte";
 
   const PROFILES = [
     { value: "mp4-h264", label: "MP4 · H.264 (universal)" },
@@ -34,7 +33,13 @@
   let crfMax = $derived(CRF_MAX[appState.settings.videoProfile] ?? 51);
   let warnings = $derived(appState.videoWarnings);
   let hwStatus = $derived(appState.videoHardwareStatus);
-  let folderText = $derived(appState.outputDir || "Same folder as each source");
+  let hwSummary = $derived.by(() => {
+    const ready = hwStatus.filter((h) => h.status === "ready").map((h) => h.name);
+    const failed = hwStatus.filter((h) => h.status === "failed").length;
+    if (ready.length) return `Hardware encoders: ${ready.join(", ")} ready${failed ? ` · ${failed} failed` : ""}`;
+    if (failed) return `Hardware encoders: ${failed} failed validation`;
+    return "No hardware encoders in this FFmpeg build";
+  });
 
   // Validate this profile's hardware encoders once when the tab opens (1s
   // lavfi encode each; cached for the session).
@@ -43,17 +48,7 @@
   });
 </script>
 
-<section class="panel" aria-labelledby="videoTitle">
-  <div class="panel-header">
-    <div>
-      <h2 id="videoTitle">Video</h2>
-      <p>{folderText}</p>
-    </div>
-    <button class="icon-button" type="button" aria-label="Choose output folder" title="Choose output folder" onclick={() => appState.pickOutputDir()}>
-      <Icon name="folder" />
-    </button>
-  </div>
-
+<section class="panel" aria-label="Video settings">
   <div class="field-grid">
     <label class="field">
       <span>Profile</span>
@@ -84,7 +79,7 @@
       </select>
     </label>
 
-    <label class="field">
+    <label class="field field-wide">
       <span>Encoder</span>
       <select bind:value={appState.settings.videoEncoder} onchange={() => appState.persistSettings()}>
         <option value="auto">Automatic (hardware if ready)</option>
@@ -100,11 +95,14 @@
   </label>
 
   {#if hwStatus.length}
-    <ul class="encoder-status">
-      {#each hwStatus as hw (hw.name)}
-        <li><span class="encoder-dot encoder-dot--{hw.status}" aria-hidden="true"></span>{hw.name} — {HW_LABEL[hw.status]}</li>
-      {/each}
-    </ul>
+    <details class="encoder-status">
+      <summary>{hwSummary}</summary>
+      <ul>
+        {#each hwStatus as hw (hw.name)}
+          <li><span class="encoder-dot encoder-dot--{hw.status}" aria-hidden="true"></span>{hw.name} — {HW_LABEL[hw.status]}</li>
+        {/each}
+      </ul>
+    </details>
   {/if}
 
   {#if warnings.length}

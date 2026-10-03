@@ -14,10 +14,16 @@
   --surface-2: #f4f5f8;
   --surface-3: #e8eaee;
 
+  /* terminal (command + log panels — always dark) */
+  --terminal-bg: #0d1117;
+  --terminal-text: #c9d1d9;
+  --terminal-accent: #a5d6ff;
+  --terminal-muted: #6e7681;
+
   /* text */
   --text: #15171b;
   --text-muted: #5a6170;
-  --text-faint: #949aa6;
+  --text-faint: #6b7280;
 
   /* lines */
   --border: #dfe2e8;
@@ -71,9 +77,14 @@
   --surface-2: #1a1d22;
   --surface-3: #22262d;
 
+  --terminal-bg: #08090c;
+  --terminal-text: #cbd5e1;
+  --terminal-accent: #93c5fd;
+  --terminal-muted: #6e7681;
+
   --text: #e4e6ea;
   --text-muted: #8b919d;
-  --text-faint: #5e636f;
+  --text-faint: #8a919d;
 
   --border: #272b32;
   --border-strong: #363b45;
@@ -195,11 +206,10 @@ svg {
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex: 0 0 auto;
-  height: 46px;
-  padding: 0 14px;
+  height: 38px;
+  padding: 0 6px 0 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -242,10 +252,118 @@ svg {
   line-height: 1;
 }
 
+.brand-version {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* output folder — a global setting, so it lives in the header */
+.output-folder-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.output-folder-button:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.output-folder-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* shortcuts help — native disclosure, no JS state */
+.help {
+  position: relative;
+}
+
+.help > summary {
+  list-style: none;
+}
+
+.help > summary::-webkit-details-marker {
+  display: none;
+}
+
+.help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.help-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 260px;
+  padding: 10px 12px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.help-popover h2 {
+  margin: 0 0 7px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.help-popover dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.help-popover dt {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.help-popover dd {
+  margin: 0;
+  color: var(--text);
+}
+
 /* ---- workspace: sources | settings | run ---- */
 .workspace {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(360px, 430px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 330px) minmax(440px, 470px) minmax(0, 1fr);
   grid-template-areas: "sources settings run";
   flex: 1;
   min-height: 0;
@@ -288,7 +406,8 @@ svg {
   border-bottom: none;
 }
 
-.col-sources .panel {
+.col-sources .panel,
+.col-run .tab-body .panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -375,6 +494,28 @@ svg {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* run column: tabs sit left-aligned, the active panel fills the column */
+.tab-bar--run button {
+  flex: 0 1 auto;
+}
+
+.col-run .tab-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.col-run .tab-body > [role="tabpanel"] {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.col-run > .command-panel {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
 }
 
 /* the tab label already names the section — drop the duplicate title */
@@ -469,6 +610,8 @@ svg {
 
 .primary-button.is-busy {
   background: var(--accent-strong);
+  opacity: 1;
+  cursor: progress;
 }
 
 .icon-button:active,
@@ -488,9 +631,9 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 9px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 104px;
-  margin: 12px 12px 0;
+  margin: 12px;
   padding: 14px 12px;
   border: 1.5px dashed var(--border-strong);
   border-radius: var(--radius-lg);
@@ -547,6 +690,39 @@ svg {
   text-wrap: balance;
 }
 
+/* compact add row once files are loaded — the big zone would waste a column */
+.drop-strip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  height: 32px;
+  margin: 10px 12px 0;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition:
+    border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.drop-strip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.drop-strip.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* ---- file / queue lists (card lists on a tinted well) ---- */
 .file-list,
 .queue-list {
@@ -563,6 +739,11 @@ svg {
   flex: 1;
   min-height: 0;
   padding: 10px 8px;
+}
+
+/* empty: the drop target above takes the whole column instead */
+.file-list.is-empty {
+  display: none;
 }
 
 .queue-list {
@@ -595,18 +776,51 @@ svg {
   grid-template-columns: 38px minmax(0, 1fr) auto;
 }
 
+.queue-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* reorder affordance: grip column, only while the rows are draggable */
+.file-row--draggable,
+.queue-row--draggable {
+  cursor: grab;
+}
+
+.file-row--draggable {
+  grid-template-columns: 6px 38px minmax(0, 1fr) auto;
+}
+
+.queue-row--draggable {
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+}
+
+.file-row--draggable::before,
+.queue-row--draggable::before {
+  content: "";
+  align-self: center;
+  width: 6px;
+  height: 22px;
+  background-image: radial-gradient(circle at 1px 1px, var(--border-strong) 1px, transparent 1.4px);
+  background-size: 4px 5px;
+}
+
+/* per-row actions stay out of the way until the row is in play */
 .file-row-buttons {
   display: flex;
   gap: 4px;
   align-items: center;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.file-row:hover .file-row-buttons,
+.file-row:focus-within .file-row-buttons,
+.file-row--selected .file-row-buttons {
+  opacity: 1;
 }
 
 .file-convert-button {
   color: var(--accent);
-}
-
-.queue-row {
-  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .file-thumb {
@@ -656,7 +870,7 @@ svg {
   display: block;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -697,15 +911,12 @@ svg {
 }
 
 .queue-row--running {
-  border-color: var(--warn);
+  box-shadow: inset 3px 0 0 var(--warn), var(--shadow-xs);
 }
 .queue-row--failed {
-  border-color: var(--danger);
+  box-shadow: inset 3px 0 0 var(--danger), var(--shadow-xs);
 }
 
-.queue-row--draggable {
-  cursor: grab;
-}
 .queue-row--draggable.is-dragging {
   opacity: 0.4;
 }
@@ -719,7 +930,7 @@ svg {
 .queue-progress-text {
   display: none;
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -810,7 +1021,7 @@ svg {
 .quality-hint {
   display: block;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -829,8 +1040,13 @@ svg {
 .field-hint {
   display: block;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
+}
+
+/* a control whose label needs the full row (long option text) */
+.field-wide {
+  grid-column: 1 / -1;
 }
 
 /* ---- toggles ---- */
@@ -921,25 +1137,23 @@ svg {
 }
 
 .command-panel pre {
-  height: 36px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: pre;
-  background: #0d1117;
-  color: #a5d6ff;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 36px;
+  background: var(--terminal-bg);
+  color: var(--terminal-accent);
   padding: 8px 14px;
-}
-
-:root[data-theme="dark"] .command-panel pre {
-  background: #08090c;
-  color: #93c5fd;
 }
 
 .queue-panel {
   display: flex;
   flex-direction: column;
-  flex: 1.3;
-  min-height: 170px;
+  flex: 1;
+  min-height: 0;
 }
 
 .queue-progress {
@@ -960,25 +1174,31 @@ svg {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 150px;
+  min-height: 0;
 }
 
 .log-panel pre {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: #0d1117;
-  color: #c9d1d9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
   padding: 10px 14px;
 }
 
-.log-idle {
-  color: #6e7681;
-}
-
-:root[data-theme="dark"] .log-panel pre {
-  background: #08090c;
-  color: #cbd5e1;
+/* idle: no black void — a centered hint on the panel background instead */
+.log-panel pre.is-idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  text-align: center;
 }
 
 /* ---- empty state ---- */
@@ -1002,6 +1222,58 @@ svg {
   flex: 0 0 auto;
   color: var(--text-faint);
 }
+/* centered inside a full-height panel (history tab) */
+.empty-state--centered {
+  margin: auto;
+}
+
+/* bottom hint of the settings column — fills the void under short forms */
+.col-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* ---- run bar (primary action row) ---- */
+.run-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 6px 12px 6px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.run-bar__summary {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.run-bar__summary strong {
+  color: var(--text);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-bar__stat {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---- status bar ---- */
 .status-bar {
@@ -1021,11 +1293,25 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   padding: 0 12px;
   border-right: 1px solid var(--border);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.status-bar__files {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-bar__size {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .status-bar > span:first-child {
@@ -1082,7 +1368,7 @@ svg {
 @media (max-width: 1180px) {
   .workspace {
     grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(200px, 2fr) minmax(0, 3fr);
     grid-template-areas:
       "sources run"
       "settings run";
@@ -1112,7 +1398,7 @@ svg {
   }
   .col-run {
     flex: 0 0 auto;
-    min-height: 640px;
+    min-height: 460px;
     border-left: none;
     border-top: 1px solid var(--border);
   }
@@ -1124,6 +1410,10 @@ svg {
   }
   .button-row {
     flex-wrap: wrap;
+  }
+  .run-bar {
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .status-bar {
     overflow-x: auto;
@@ -1144,26 +1434,61 @@ svg {
   height: 3px;
   margin-top: 4px;
   border-radius: 2px;
-  background: var(--border, rgba(127, 127, 127, 0.25));
+  background: var(--surface-3);
   overflow: hidden;
 }
 
 .queue-item-progress span {
   display: block;
   height: 100%;
-  background: var(--accent, currentColor);
+  background: var(--accent);
   transition: width 0.2s ease;
 }
 
-/* Hardware encoder status list (Video panel). */
+/* Hardware encoder status (Video panel) — one line, details on demand. */
 .encoder-status {
+  display: block;
+  margin: 0 16px 14px;
+  font-size: 12px;
+}
+
+.encoder-status > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  cursor: pointer;
   list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.encoder-status > summary::-webkit-details-marker {
+  display: none;
+}
+
+.encoder-status > summary::before {
+  content: "›";
+  font-size: 14px;
+  line-height: 1;
+  transition: transform var(--dur) var(--ease);
+}
+
+.encoder-status[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.encoder-status > summary:hover {
+  color: var(--text-muted);
+}
+
+.encoder-status ul {
   display: grid;
-  gap: 2px;
-  font-size: 0.78rem;
-  opacity: 0.85;
+  gap: 3px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
 }
 
 .encoder-status li {
@@ -1177,13 +1502,13 @@ svg {
   height: 8px;
   border-radius: 50%;
   flex: none;
-  background: var(--muted, rgba(127, 127, 127, 0.6));
+  background: var(--text-faint);
 }
 
 .encoder-dot--ready {
-  background: var(--ok, #3ba55d);
+  background: var(--ok);
 }
 
 .encoder-dot--failed {
-  background: var(--danger, #d64545);
+  background: var(--danger);
 }

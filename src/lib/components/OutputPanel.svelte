@@ -1,6 +1,5 @@
 <script lang="ts">
   import { appState } from "$lib/stores/app-state.svelte";
-  import Icon from "./Icon.svelte";
 
   const QUALITY_HINTS: Record<string, string> = {
     webp: "Recommended: 75-85 for web photos",
@@ -11,22 +10,11 @@
     jls: "Recommended: 70-90",
   };
 
-  let folderText = $derived(appState.outputDir || "Same folder as each source");
   let qualityHint = $derived(QUALITY_HINTS[appState.settings.format] ?? "");
   let encoderWarning = $derived(appState.encoderWarning);
 </script>
 
-<section class="panel" aria-labelledby="outputTitle">
-  <div class="panel-header">
-    <div>
-      <h2 id="outputTitle">Output</h2>
-      <p>{folderText}</p>
-    </div>
-    <button class="icon-button" type="button" aria-label="Choose output folder" title="Choose output folder" onclick={() => appState.pickOutputDir()}>
-      <Icon name="folder" />
-    </button>
-  </div>
-
+<section class="panel" aria-label="Output settings">
   <div class="field-grid">
     <label class="field">
       <span>Format</span>

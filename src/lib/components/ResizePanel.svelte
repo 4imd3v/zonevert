@@ -31,7 +31,7 @@ import { buildFilterGraph } from "$lib/logic/conversion-plan";
 <section class="panel" aria-labelledby="resizeTitle">
   <div class="panel-header">
     <div>
-      <h2 id="resizeTitle">Transform</h2>
+      <h2 id="resizeTitle">Resize</h2>
       <p>{summary}</p>
     </div>
   </div>

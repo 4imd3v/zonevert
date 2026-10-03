@@ -129,6 +129,8 @@ class AppState {
   // ---- source files ----
   files = $state<SelectedImage[]>([]);
   selectedFileIndex = $state(-1);
+  /** true while a native drag-drop hovers the window (drives drop affordances) */
+  isDraggingFiles = $state(false);
   thumbnails = $state.raw<Map<string, string>>(new Map());
   imageMeta = $state.raw<Map<string, string>>(new Map());
   // paths probeMedia classified as real video + their probe summaries

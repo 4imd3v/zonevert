@@ -29,15 +29,33 @@
     </div>
   </div>
 
-  <button class="drop-target" type="button" onclick={() => appState.addFiles()}>
-    <span class="drop-icon" aria-hidden="true"><Icon name="image" /></span>
-    <span class="drop-copy">
-      <strong>Drop images or videos here</strong>
-      <small>or click to browse · JPG, PNG, WebP, AVIF, TIFF · MP4, MKV, WebM, MOV, AVI</small>
-    </span>
-  </button>
+  {#if isEmpty}
+    <button
+      class="drop-target"
+      class:is-dragging={appState.isDraggingFiles}
+      type="button"
+      onclick={() => appState.addFiles()}
+    >
+      <span class="drop-icon" aria-hidden="true"><Icon name="image" /></span>
+      <span class="drop-copy">
+        <strong>Drop images or videos here</strong>
+        <small>or click to browse · JPG, PNG, WebP, AVIF, TIFF · MP4, MKV, WebM, MOV, AVI</small>
+      </span>
+    </button>
+  {:else}
+    <button
+      class="drop-strip"
+      class:is-dragging={appState.isDraggingFiles}
+      type="button"
+      title="Add files (Ctrl+O)"
+      onclick={() => appState.addFiles()}
+    >
+      <Icon name="plus" />
+      Add more files
+    </button>
+  {/if}
 
-  <div class="file-list" aria-live="polite">
+  <div class="file-list" class:is-empty={isEmpty} role="listbox" aria-label="Source files" aria-live="polite">
     {#if !isEmpty}
       {#each appState.files as file, index (file.path)}
         {@const meta = appState.imageMeta.get(file.path)}
